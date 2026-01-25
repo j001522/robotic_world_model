@@ -30,6 +30,12 @@ class RslRlSystemDynamicsCfg:
     uncertainty_metric: str = "std"
     """The metric for epistemic uncertainty: 'std' (default, original) or 'variance' (theoretically sound, additive)."""
 
+    prior_scale: float = 0.0
+    """Scale for randomized priors (Osband et al., 2018). 0 = disabled (default), 1.0 = standard prior strength."""
+
+    prior_hidden_div: int = 4
+    """Divisor for prior network hidden dimensions. Prior uses hidden_dim // prior_hidden_div."""
+
 
 @configclass
 class RslRlNormalizerCfg:

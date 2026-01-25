@@ -79,6 +79,8 @@ class BaseConfig:
         # })
         freeze_auxiliary: bool = False
         uncertainty_metric: str = "std"  # "std" (original) or "variance" (theoretically sound)
+        prior_scale: float = 0.0  # Randomized priors: 0 = disabled, 1.0 = standard
+        prior_hidden_div: int = 4  # Prior network hidden dim divisor
         resume_path: str | None = None
 
         def to_dict(self):
