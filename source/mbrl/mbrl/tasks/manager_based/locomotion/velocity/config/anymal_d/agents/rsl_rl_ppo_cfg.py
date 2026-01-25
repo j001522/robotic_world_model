@@ -33,6 +33,7 @@ class AnymalDFlatPPOPretrainRunnerCfg(AnymalDFlatPPORunnerCfg):
             "termination_shape": [128],
         },
         freeze_auxiliary=False,
+        uncertainty_metric="std",
     )
     imagination = RslRlMbrlImaginationCfg(
         num_envs=0,

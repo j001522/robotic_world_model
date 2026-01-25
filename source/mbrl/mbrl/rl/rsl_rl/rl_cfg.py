@@ -27,6 +27,9 @@ class RslRlSystemDynamicsCfg:
     freeze_auxiliary: bool = MISSING
     """Whether to freeze the auxiliary networks."""
 
+    uncertainty_metric: str = "std"
+    """The metric for epistemic uncertainty: 'std' (default, original) or 'variance' (theoretically sound, additive)."""
+
 
 @configclass
 class RslRlNormalizerCfg:

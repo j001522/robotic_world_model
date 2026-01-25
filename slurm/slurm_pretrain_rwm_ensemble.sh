@@ -31,6 +31,11 @@ ENSEMBLE_SIZE=5
 
 # Uncertainty penalty (0.0 for pretrain, -0.1 for conservative exploration)
 UNCERTAINTY_PENALTY=0.0
+
+# Uncertainty metric: "std" (original) or "variance" (theoretically sound)
+# - std: same units as state, milder penalty, original RWM implementation
+# - variance: additive across dimensions, stronger penalty for high disagreement
+UNCERTAINTY_METRIC="std"
 # =============================================================
 
 echo "========================================"
@@ -119,6 +124,7 @@ apptainer exec --nv \
     --log_project_name $WANDB_PROJECT \
     --run_name $RUN_NAME \
     agent.system_dynamics.ensemble_size=$ENSEMBLE_SIZE \
+    agent.system_dynamics.uncertainty_metric=$UNCERTAINTY_METRIC \
     agent.algorithm.system_dynamics_learning_rate=1e-4 \
     agent.algorithm.system_dynamics_weight_decay=1e-5 \
     agent.algorithm.system_dynamics_mini_batch_size=1024 \

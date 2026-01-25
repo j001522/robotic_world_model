@@ -190,7 +190,7 @@ class ModelBasedExperiment:
             self.env.set_init_dataset(self.dataset, init_data_ratio)
 
 
-    def prepare_model(self, history_horizon, forecast_horizon, extension_dim, contact_dim, termination_dim, ensemble_size, architecture_config, freeze_auxiliary=False, resume_path=None):
+    def prepare_model(self, history_horizon, forecast_horizon, extension_dim, contact_dim, termination_dim, ensemble_size, architecture_config, freeze_auxiliary=False, uncertainty_metric="std", resume_path=None):
         self.history_horizon = history_horizon
         self.forecast_horizon = forecast_horizon
         self.state_dim = self.env.state_dim
@@ -209,6 +209,7 @@ class ModelBasedExperiment:
             history_horizon=self.history_horizon,
             architecture_config=architecture_config,
             freeze_auxiliary=freeze_auxiliary,
+            uncertainty_metric=uncertainty_metric,
             )
         self.model_learning_iteration = 0
         if resume_path is not None:

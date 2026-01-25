@@ -50,6 +50,11 @@ ENSEMBLE_SIZE=5
 # -1.0 = strong penalty (very conservative, as used in offline U-RWM)
 # 0.0 = no penalty (same as single model, but with trajectory sampling)
 UNCERTAINTY_PENALTY=-0.1
+
+# Uncertainty metric: "std" (original) or "variance" (theoretically sound)
+# - std: same units as state, milder penalty, original RWM implementation
+# - variance: additive across dimensions, stronger penalty for high disagreement
+UNCERTAINTY_METRIC="std"
 # =============================================================
 
 echo "========================================"
@@ -110,6 +115,7 @@ echo ""
 echo "Ensemble Configuration:"
 echo "  - Ensemble Size: $ENSEMBLE_SIZE"
 echo "  - Uncertainty Penalty: $UNCERTAINTY_PENALTY"
+echo "  - Uncertainty Metric: $UNCERTAINTY_METRIC"
 echo "  - (Each imagination env follows a random ensemble member)"
 echo ""
 echo "Imagination Configuration (from Table S11):"
@@ -154,6 +160,7 @@ apptainer exec --nv \
     --log_project_name $WANDB_PROJECT \
     --run_name $RUN_NAME \
     agent.system_dynamics.ensemble_size=$ENSEMBLE_SIZE \
+    agent.system_dynamics.uncertainty_metric=$UNCERTAINTY_METRIC \
     agent.imagination.num_envs=$IMAGINATION_ENVS \
     agent.imagination.num_steps=$IMAGINATION_STEPS \
     agent.imagination.uncertainty_penalty_weight=$UNCERTAINTY_PENALTY \

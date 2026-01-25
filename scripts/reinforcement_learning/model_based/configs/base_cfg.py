@@ -78,6 +78,7 @@ class BaseConfig:
         #     "termination_shape": [128],
         # })
         freeze_auxiliary: bool = False
+        uncertainty_metric: str = "std"  # "std" (original) or "variance" (theoretically sound)
         resume_path: str | None = None
 
         def to_dict(self):
