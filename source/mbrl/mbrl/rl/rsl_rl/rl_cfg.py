@@ -36,6 +36,9 @@ class RslRlSystemDynamicsCfg:
     prior_hidden_div: int = 4
     """Divisor for prior network hidden dimensions. Prior uses hidden_dim // prior_hidden_div."""
 
+    bootstrap: bool = True
+    """Whether to use bootstrapping (random data subsets per ensemble member). Default True for backward compatibility."""
+
 
 @configclass
 class RslRlNormalizerCfg:

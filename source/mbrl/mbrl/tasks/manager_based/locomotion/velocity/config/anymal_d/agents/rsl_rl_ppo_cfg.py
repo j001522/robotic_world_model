@@ -36,6 +36,7 @@ class AnymalDFlatPPOPretrainRunnerCfg(AnymalDFlatPPORunnerCfg):
         uncertainty_metric="std",
         prior_scale=0.0,
         prior_hidden_div=4,
+        bootstrap=True,
     )
     imagination = RslRlMbrlImaginationCfg(
         num_envs=0,
