@@ -36,9 +36,9 @@ class AnymalDFlatPPOPretrainRunnerCfg(AnymalDFlatPPORunnerCfg):
     )
     imagination = RslRlMbrlImaginationCfg(
         num_envs=0,
-        num_steps_per_env=0,
+        num_steps=0,
         max_episode_length=0,
-        command_resample_interval_range=None,
+        command_resample_interval=-1,
         uncertainty_penalty_weight=-0.0,
         state_normalizer=RslRlNormalizerCfg(
             mean=[
@@ -120,9 +120,9 @@ class AnymalDFlatPPOFinetuneRunnerCfg(AnymalDFlatPPOPretrainRunnerCfg):
         super().__post_init__()
         # override imagination
         self.imagination.num_envs = 8192
-        self.imagination.num_steps_per_env = 24
+        self.imagination.num_steps = 24
         self.imagination.max_episode_length = 256
-        self.imagination.command_resample_interval_range = [100, 120]
+        self.imagination.command_resample_interval = 110
         self.imagination.uncertainty_penalty_weight = -0.0
 
 

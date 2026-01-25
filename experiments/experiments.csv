@@ -1,0 +1,2 @@
+id,date,slurm_job,type,status,log_dir,description,key_params,final_reward,notes
+exp001,2026-01-25,18669465,pretrain-single,running,logs/rsl_rl/anymal_d_flat/2026-01-25_11-36-30_pretrain,Paper params baseline (2500 iter),max_iter=2500 wm_lr=1e-4 wm_batch=1024,,First run with corrected Hydra overrides
