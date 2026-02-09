@@ -39,6 +39,34 @@ class RslRlSystemDynamicsCfg:
     bootstrap: bool = True
     """Whether to use bootstrapping (random data subsets per ensemble member). Default True for backward compatibility."""
 
+    # --- Latent space parameters (Phase 1) ---
+    latent_mode: bool = False
+    """Whether to use latent-space dynamics. Default False preserves original raw-state behavior."""
+
+    latent_dim: int = 256
+    """Latent representation dimension. Must be divisible by simnorm_dim. Only used if latent_mode=True."""
+
+    simnorm_dim: int = 8
+    """SimNorm group size. Each group of simnorm_dim elements is normalized to a probability simplex."""
+
+    encoder_hidden_dims: list[int] | None = None
+    """Hidden layer widths for the state encoder. Defaults to [256] if None."""
+
+    decoder_hidden_dims: list[int] | None = None
+    """Hidden layer widths for the state decoder. Defaults to [256] if None."""
+
+    latent_head_hidden_dims: list[int] | None = None
+    """Hidden layer widths for the latent dynamics head. Defaults to [256] if None."""
+
+    encoder_dropout: float = 0.0
+    """Dropout rate for encoder hidden layers."""
+
+    consistency_coef: float = 2.0
+    """Weight for consistency loss (MSE in latent space between predicted and target latent states)."""
+
+    reconstruction_coef: float = 1.0
+    """Weight for reconstruction loss (MSE between decoded prediction and raw target state)."""
+
 
 @configclass
 class RslRlNormalizerCfg:
