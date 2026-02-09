@@ -1,2 +1,6 @@
 id,date,slurm_job,type,status,log_dir,description,key_params,final_reward,notes
-exp001,2026-01-25,18669465,pretrain-single,running,logs/rsl_rl/anymal_d_flat/2026-01-25_11-36-30_pretrain,Paper params baseline (2500 iter),max_iter=2500 wm_lr=1e-4 wm_batch=1024,,First run with corrected Hydra overrides
+exp001,2026-01-25,18669465,pretrain-single,completed,logs/rsl_rl/anymal_d_flat/2026-01-25_11-36-30_pretrain,Paper params baseline (2500 iter),max_iter=2500 wm_lr=1e-4 wm_batch=1024,23.5,First run with corrected Hydra overrides
+exp002,2026-01-25,18670059,pretrain-ensemble,completed,logs/rsl_rl/anymal_d_flat/2026-01-25_11-57-10_pretrain-ensemble,Ensemble pretrain (5 models),ensemble_size=5 bootstrap=true prior_scale=0.0,23.5,Completed successfully
+exp003,2026-01-25,18675590,finetune-single,running,logs/rsl_rl/anymal_d_flat/2026-01-25_18-04-51_finetune-paper-baseline,Single model MBPPO finetune baseline,imag_envs=4096 imag_steps=100 penalty=0.0,,Uses exp001 pretrain checkpoint
+exp004,2026-01-25,18676349,finetune-ensemble,running,logs/rsl_rl/anymal_d_flat/TBD_finetune-ensemble-std,Ensemble finetune with STD uncertainty,ensemble=5 metric=std penalty=-0.1,,Uses exp002 pretrain checkpoint
+exp005,2026-01-25,18676350,finetune-ensemble,running,logs/rsl_rl/anymal_d_flat/TBD_finetune-ensemble-variance,Ensemble finetune with Variance uncertainty,ensemble=5 metric=variance penalty=-0.1,,Uses exp002 pretrain checkpoint

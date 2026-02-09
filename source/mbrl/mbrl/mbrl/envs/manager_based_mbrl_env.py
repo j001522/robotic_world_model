@@ -42,6 +42,10 @@ class ManagerBasedMBRLEnv(ManagerBasedRLEnv):
         self._init_imagination_command()
         self.last_obs = TensorDict({"policy": torch.zeros(self.num_imagination_envs, self.observation_manager.group_obs_dim["policy"][0])}, batch_size=[self.num_imagination_envs], device=self.device)
         self.imagination_extras = {}
+        # Fully reset system dynamics hidden states before imagination
+        # This ensures RNN hidden states are re-initialized with correct batch size (num_imagination_envs)
+        # instead of inheriting size from real env training (num_envs which may differ)
+        self.system_dynamics.reset()
         self._reset_imagination_idx(torch.arange(self.num_imagination_envs, device=self.device))
 
 
@@ -64,6 +68,12 @@ class ManagerBasedMBRLEnv(ManagerBasedRLEnv):
     def _reset_imagination_command(self, env_ids):
         for name, term in self.command_manager._terms.items():
             getattr(self, name)[env_ids] = term.sample_command(len(env_ids))
+
+
+    def sample_imagination_command(self):
+        """Sample new commands for all imagination environments."""
+        for name, term in self.command_manager._terms.items():
+            setattr(self, name, term.sample_command(self.num_imagination_envs))
 
     
     def _init_imagination_reward_buffer(self):
@@ -153,6 +163,11 @@ class ManagerBasedMBRLEnv(ManagerBasedRLEnv):
             return torch.empty(0, dtype=torch.int, device=self.device)
         else:
             return (self.imagination_episode_length_buf % self.imagination_command_resample_intervals == 0).nonzero(as_tuple=False).squeeze(-1)
+
+
+    def get_imagination_reward_per_step(self):
+        """Return the per-step reward breakdown for imagination rollouts (mean across envs)."""
+        return {term: value.mean() for term, value in self.imagination_reward_per_step.items()}
 
 
     def _init_additional_attributes(self):

@@ -75,8 +75,11 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
-from omni.kit.viewport.menubar.lighting.actions import _set_lighting_mode
-_set_lighting_mode("Grey Studio") # Colored Lights
+try:
+    from omni.kit.viewport.menubar.lighting.actions import _set_lighting_mode
+    _set_lighting_mode("Grey Studio") # Colored Lights
+except (ImportError, ModuleNotFoundError):
+    pass  # Skip lighting setup in headless mode
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 import mbrl.tasks  # noqa: F401

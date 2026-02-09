@@ -1,33 +1,31 @@
 #!/bin/bash
-#SBATCH --job-name=rwm-finetune
+#SBATCH --job-name=rwm-ensemble-ft-var
 #SBATCH --partition=gpu_a100
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=18
 #SBATCH --time=24:00:00
 #SBATCH --mem=64G
-#SBATCH --output=/gpfs/work4/0/prjs0951/Giacomo/robotic_world_model/logs/slurm/rwm-finetune-%j.out
-#SBATCH --error=/gpfs/work4/0/prjs0951/Giacomo/robotic_world_model/logs/slurm/rwm-finetune-%j.err
+#SBATCH --output=/gpfs/work4/0/prjs0951/Giacomo/robotic_world_model/logs/slurm/rwm-ensemble-finetune-variance-%j.out
+#SBATCH --error=/gpfs/work4/0/prjs0951/Giacomo/robotic_world_model/logs/slurm/rwm-ensemble-finetune-variance-%j.err
 
 # =============================================================================
-# RWM Phase 2: Finetune with Model-Based PPO (MBPPO)
+# U-RWM Phase 2: Finetune with Ensemble MBPO-PPO (VARIANCE metric)
 # =============================================================================
-# This script finetunes a policy using imagination rollouts from a pretrained
-# world model. It requires a completed pretrain run (Phase 1).
+# Same as slurm_finetune_rwm_ensemble.sh but uses VARIANCE as uncertainty metric
+# instead of STD for comparison.
 #
-# Prerequisites:
-#   - Completed pretrain run with model checkpoint
-#   - Update PRETRAIN_DIR below to point to your pretrain logs
+# Key differences:
+#   - Uses variance (theoretically sound, additive across dims, stronger penalty)
+#   - STD version uses same units as state, milder penalty
 #
 # Usage:
-#   sbatch slurm_finetune_rwm.sh
+#   sbatch slurm_finetune_rwm_ensemble_variance.sh
 # =============================================================================
 
 # ======================= CONFIGURATION =======================
-# UPDATE THIS: Path to your pretrain run directory (relative to robotic_world_model/)
-# Example: logs/rsl_rl/anymal_d_flat/2026-01-24_17-10-17
 PRETRAIN_DIR="logs/rsl_rl/anymal_d_flat/2026-01-25_11-57-10_pretrain-ensemble"
 
-# Checkpoint iteration to load (default: final checkpoint from 2500 iterations)
+# Checkpoint iteration to load
 CHECKPOINT_ITER=2500
 
 # Finetuning parameters (from Table S11)
@@ -35,6 +33,15 @@ MAX_ITERATIONS=2500
 NUM_ENVS=4096
 IMAGINATION_ENVS=4096
 IMAGINATION_STEPS=100
+
+# Ensemble parameters
+ENSEMBLE_SIZE=5
+
+# Uncertainty penalty weight (negative = penalty for high uncertainty)
+UNCERTAINTY_PENALTY=-0.1
+
+# Uncertainty metric: VARIANCE for this experiment
+UNCERTAINTY_METRIC="variance"
 # =============================================================
 
 echo "========================================"
@@ -55,7 +62,7 @@ LOGGER="tensorboard"
 WANDB_PROJECT="rwm-anymal"
 
 # Run name for easy identification (will appear in wandb dashboard)
-RUN_NAME="finetune-ensemble-std"
+RUN_NAME="finetune-ensemble-variance-penalty${UNCERTAINTY_PENALTY}"
 # =======================================================
 
 # Change to robotic_world_model directory
@@ -69,7 +76,7 @@ if [ ! -f "$CHECKPOINT_PATH" ]; then
     echo ""
     echo "ERROR: Checkpoint not found at: $CHECKPOINT_PATH"
     echo ""
-    echo "Please update PRETRAIN_DIR in this script to point to your pretrain run."
+    echo "Please update PRETRAIN_DIR in this script to point to your ENSEMBLE pretrain run."
     echo "Available runs:"
     ls -la logs/rsl_rl/anymal_d_flat/ 2>/dev/null || echo "  No runs found in logs/rsl_rl/anymal_d_flat/"
     echo ""
@@ -85,22 +92,25 @@ echo "  Container: /gpfs/work4/0/prjs0951/Giacomo/isaac-sim/containers/isaac-sim
 echo ""
 
 echo "========================================"
-echo "RWM Phase 2: Model-Based Policy Finetuning"
+echo "U-RWM Phase 2: Ensemble MBPO-PPO Finetuning"
 echo "========================================"
 echo "Task: Template-Isaac-Velocity-Flat-Anymal-D-Finetune-v0"
 echo ""
-echo "Loading from pretrain:"
+echo "Loading from ensemble pretrain:"
 echo "  Checkpoint: $CHECKPOINT_PATH"
 echo ""
-echo "Configuration (from Table S11):"
+echo "Ensemble Configuration:"
+echo "  - Ensemble Size: $ENSEMBLE_SIZE"
+echo "  - Uncertainty Penalty: $UNCERTAINTY_PENALTY"
+echo "  - Uncertainty Metric: $UNCERTAINTY_METRIC"
+echo "  - (Each imagination env follows a random ensemble member)"
+echo ""
+echo "Imagination Configuration (from Table S11):"
 echo "  - Imagination Envs: $IMAGINATION_ENVS"
 echo "  - Imagination Steps: $IMAGINATION_STEPS"
 echo "  - Real Envs: $NUM_ENVS"
 echo "  - Max Iterations: $MAX_ITERATIONS"
 echo "  - Policy Learning Rate: 0.001"
-echo "  - KL Target: 0.01 (default)"
-echo "  - Clip Param: 0.2 (default)"
-echo "  - Entropy Coef: 0.005 (default)"
 echo "  - WM Warmup Iterations: 500 (default)"
 echo ""
 echo "Logging:"
@@ -108,7 +118,7 @@ echo "  - Logger: $LOGGER"
 echo "  - W&B Project: $WANDB_PROJECT"
 echo "  - Run Name: $RUN_NAME"
 echo ""
-echo "Expected training time: ~10-15 hours"
+echo "Expected training time: ~12-18 hours"
 echo "Checkpoints will be saved to:"
 echo "  logs/rsl_rl/anymal_d_flat/<timestamp>_finetune/"
 echo "========================================"
@@ -137,28 +147,32 @@ apptainer exec --nv \
     --logger $LOGGER \
     --log_project_name $WANDB_PROJECT \
     --run_name $RUN_NAME \
+    agent.system_dynamics.ensemble_size=$ENSEMBLE_SIZE \
+    agent.system_dynamics.uncertainty_metric=$UNCERTAINTY_METRIC \
     agent.imagination.num_envs=$IMAGINATION_ENVS \
     agent.imagination.num_steps=$IMAGINATION_STEPS \
+    agent.imagination.uncertainty_penalty_weight=$UNCERTAINTY_PENALTY \
     agent.algorithm.policy_learning_rate=0.001 \
-    agent.system_dynamics_num_visualizations=0 \
-    agent.system_dynamics.ensemble_size=5
+    agent.system_dynamics_num_visualizations=0
 
 EXITCODE=$?
 
 echo ""
 echo "========================================"
-echo "Finetuning Completed"
+echo "Ensemble Finetuning Completed"
 echo "Exit Code: $EXITCODE"
 echo "End Time: $(date)"
 echo "========================================"
 
 if [ $EXITCODE -eq 0 ]; then
     echo ""
-    echo "SUCCESS: MBPPO finetuning completed!"
+    echo "SUCCESS: Ensemble MBPPO finetuning completed!"
     echo ""
-echo "The finetuned policy was trained using:"
-echo "  - Real environment rollouts (for world model updates)"
-echo "  - Imagined rollouts ($IMAGINATION_ENVS envs x $IMAGINATION_STEPS steps per iteration)"
+    echo "The finetuned policy was trained using:"
+    echo "  - Real environment rollouts (for world model updates)"
+    echo "  - Imagined rollouts ($IMAGINATION_ENVS envs x $IMAGINATION_STEPS steps per iteration)"
+    echo "  - ${ENSEMBLE_SIZE}-member ensemble with trajectory sampling"
+    echo "  - Uncertainty penalty weight: $UNCERTAINTY_PENALTY"
     echo ""
     echo "Checkpoint location:"
     LATEST_LOG=$(ls -td logs/rsl_rl/anymal_d_flat/*finetune*/ 2>/dev/null | head -1)
@@ -173,18 +187,23 @@ echo "  - Imagined rollouts ($IMAGINATION_ENVS envs x $IMAGINATION_STEPS steps p
     echo "       --checkpoint <finetuned_model>.pt \\"
     echo "       --video --video_length 400 --headless"
     echo ""
-    echo "  2. Compare with pretrain-only policy to measure improvement"
+    echo "  2. Compare with single-model finetune to measure ensemble benefit"
+    echo ""
+    echo "  3. Try different uncertainty penalties:"
+    echo "     - 0.0: No penalty (pure trajectory sampling)"
+    echo "     - -0.1: Mild conservative (current)"
+    echo "     - -1.0: Strong conservative (as in offline U-RWM)"
 else
     echo ""
-    echo "FAILED: Finetuning failed with exit code $EXITCODE"
+    echo "FAILED: Ensemble finetuning failed with exit code $EXITCODE"
     echo ""
     echo "Check the error log:"
-    echo "  logs/slurm/rwm-finetune-$SLURM_JOB_ID.err"
+    echo "  logs/slurm/rwm-ensemble-finetune-$SLURM_JOB_ID.err"
     echo ""
     echo "Common issues:"
+    echo "  - Checkpoint was trained with different ensemble_size"
     echo "  - Checkpoint path incorrect (update PRETRAIN_DIR)"
-    echo "  - Config mismatch (ensure pretrain used same architecture)"
-    echo "  - OOM: reduce NUM_ENVS or imagination envs in config"
+    echo "  - OOM: reduce NUM_ENVS or IMAGINATION_ENVS"
 fi
 
 exit $EXITCODE

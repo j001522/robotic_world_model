@@ -31,7 +31,8 @@
 # ======================= CONFIGURATION =======================
 # UPDATE THIS: Path to your ENSEMBLE pretrain run directory
 # Example: logs/rsl_rl/anymal_d_flat/2026-01-25_12-00-00
-PRETRAIN_DIR="logs/rsl_rl/anymal_d_flat/REPLACE_WITH_YOUR_ENSEMBLE_PRETRAIN_TIMESTAMP"
+PRETRAIN_DIR="logs/rsl_rl/anymal_d_flat/2026-01-25_11-57-10_pretrain-ensemble" # STANDARD
+
 
 # Checkpoint iteration to load (default: final checkpoint from 2500 iterations)
 CHECKPOINT_ITER=2500
@@ -44,6 +45,8 @@ IMAGINATION_STEPS=100
 
 # Ensemble parameters
 ENSEMBLE_SIZE=5
+
+
 
 # Uncertainty penalty weight (negative = penalty for high uncertainty)
 # -0.1 = mild penalty (conservative)
@@ -75,7 +78,7 @@ LOGGER="tensorboard"
 WANDB_PROJECT="rwm-anymal"
 
 # Run name for easy identification (will appear in wandb dashboard)
-RUN_NAME="finetune-ensemble-penalty${UNCERTAINTY_PENALTY}"
+RUN_NAME="finetune-ensemble-${UNCERTAINTY_METRIC}${UNCERTAINTY_PENALTY}"
 # =======================================================
 
 # Change to robotic_world_model directory
@@ -116,6 +119,8 @@ echo "Ensemble Configuration:"
 echo "  - Ensemble Size: $ENSEMBLE_SIZE"
 echo "  - Uncertainty Penalty: $UNCERTAINTY_PENALTY"
 echo "  - Uncertainty Metric: $UNCERTAINTY_METRIC"
+echo "  - Prior Scale: $PRIOR_SCALE (must match pretrain!)"
+echo "  - Prior Hidden Divisor: $PRIOR_HIDDEN_DIV"
 echo "  - (Each imagination env follows a random ensemble member)"
 echo ""
 echo "Imagination Configuration (from Table S11):"
@@ -153,14 +158,17 @@ apptainer exec --nv \
     --headless \
     --num_envs $NUM_ENVS \
     --max_iterations $MAX_ITERATIONS \
-    --resume \
-    --checkpoint $CHECKPOINT_PATH \
+    --resume True \
+    --load_run 2026-01-25_11-57-10_pretrain-ensemble \
+    --checkpoint model_${CHECKPOINT_ITER}.pt \
     --system_dynamics_load_path $CHECKPOINT_PATH \
     --logger $LOGGER \
     --log_project_name $WANDB_PROJECT \
     --run_name $RUN_NAME \
     agent.system_dynamics.ensemble_size=$ENSEMBLE_SIZE \
     agent.system_dynamics.uncertainty_metric=$UNCERTAINTY_METRIC \
+    agent.system_dynamics.prior_scale=$PRIOR_SCALE \
+    agent.system_dynamics.prior_hidden_div=$PRIOR_HIDDEN_DIV \
     agent.imagination.num_envs=$IMAGINATION_ENVS \
     agent.imagination.num_steps=$IMAGINATION_STEPS \
     agent.imagination.uncertainty_penalty_weight=$UNCERTAINTY_PENALTY \
@@ -214,6 +222,7 @@ else
     echo ""
     echo "Common issues:"
     echo "  - Checkpoint was trained with different ensemble_size"
+    echo "  - Checkpoint was trained with different prior_scale (mismatch causes state_dict error)"
     echo "  - Checkpoint path incorrect (update PRETRAIN_DIR)"
     echo "  - OOM: reduce NUM_ENVS or IMAGINATION_ENVS"
 fi

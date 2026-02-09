@@ -1,0 +1,85 @@
+# Example configuration file for plot_all.py
+#
+# Usage:
+#   python plot_all.py --config plot_config.yaml
+#
+# All settings can also be overridden via command-line arguments.
+
+# ============================================================================
+# Directories
+# ============================================================================
+
+results_dir: /projects/0/prjs0951/Giacomo/robotic_world_model/results/paper
+output_dir: /projects/0/prjs0951/Giacomo/robotic_world_model/results/paper/figures
+
+# Output format: pdf, png, or svg
+format: pdf
+
+# ============================================================================
+# Condition Filtering
+# ============================================================================
+
+# Include only these conditions (comment out to include all)
+# Supports partial matching: "rp-pen" matches "rp-pen025-std", "rp-pen006-std", etc.
+conditions:
+  - bs-nopen
+  - rp-pen025-std
+  - rp-pen006-std
+  - bs-pen025
+
+# Exclude these conditions (applied after include filter)
+# exclude:
+#   - rp-pen025-var
+
+# ============================================================================
+# Custom Colors
+# ============================================================================
+
+# Override default colors for specific conditions
+# Uses hex color codes
+colors:
+  bs-nopen: '#228833'        # Green - Baseline
+  bs-pen025: '#EE7733'       # Orange
+  rp-pen006-std: '#0077BB'   # Blue
+  rp-pen025-std: '#33BBEE'   # Light Blue
+  #rp-pen025-var: '#009988'   # Teal
+
+# ============================================================================
+# Custom Labels
+# ============================================================================
+
+# Override auto-generated labels for specific conditions
+# labels:
+#   bs-nopen: 'Baseline (Bootstrap)'
+#   rp-pen025-std: 'Random Priors + Penalty'
+
+# ============================================================================
+# Smoothing Parameters
+# ============================================================================
+
+# Window size for smoothing reward curves (set to 1 for no smoothing)
+smooth_window: 20
+
+# Window size for smoothing autoregressive error curves
+autoregressive_smooth_window: 20
+
+# ============================================================================
+# Which Plots to Generate
+# ============================================================================
+
+plots:
+  training_curves: true
+  hallucination_horizon: true
+  noise_robustness: true
+  error_vs_uncertainty: true
+  faithfulness_gap: false
+
+# ============================================================================
+# Per-Plot Settings
+# ============================================================================
+
+hallucination_horizon:
+  error_type: rel  # 'rel' for relative error, 'abs' for absolute
+
+error_vs_uncertainty:
+  error_type: rel  # 'rel' for relative error, 'abs' for absolute
