@@ -67,6 +67,19 @@ class RslRlSystemDynamicsCfg:
     reconstruction_coef: float = 1.0
     """Weight for reconstruction loss (MSE between decoded prediction and raw target state)."""
 
+    target_encoder_momentum: float = 0.99
+    """EMA momentum for the target encoder. θ_target ← momentum * θ_target + (1 - momentum) * θ_online.
+    Only used when latent_mode=True."""
+
+    encoder_consistency_coef: float = 0.0
+    """Weight for bidirectional encoder consistency loss (TD-MPC2 style). 0.0 = disabled (default).
+    When > 0, adds a loss term that trains the online encoder to produce representations 
+    consistent with dynamics predictions."""
+
+    residual_decoder: bool = False
+    """Whether the decoder predicts residuals (s_{t+1} = s_t + Decoder(z, s_t)) instead of absolute states.
+    Only used when latent_mode=True. Default False preserves original behavior."""
+
 
 @configclass
 class RslRlNormalizerCfg:
