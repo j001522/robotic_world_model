@@ -128,32 +128,36 @@ class ColorManager:
     def get_color(self, condition: str) -> str:
         """
         Get color for a condition.
-        
-        If the condition has been seen before, returns the same color.
-        If the condition is in PAPER_CONDITION_COLORS, uses the fixed color.
-        Otherwise, assigns the next color from the palette.
-        
+
+        Always checks PAPER_CONDITION_COLORS first for updates.
+        If the condition is not in PAPER_CONDITION_COLORS, uses cached assignment
+        or assigns the next color from the palette.
+
         Args:
             condition: Condition name/key
-            
+
         Returns:
             Hex color string
         """
+        norm = normalize_condition(condition)
+
+        # Always check PAPER_CONDITION_COLORS first (allows runtime updates)
+        if self.use_fixed_colors:
+            # Check exact match first
+            if condition in PAPER_CONDITION_COLORS:
+                return PAPER_CONDITION_COLORS[condition]
+            # Try normalized exact match
+            if norm in PAPER_CONDITION_COLORS:
+                return PAPER_CONDITION_COLORS[norm]
+            # Try substring match (e.g., "rp-nopen" matches "rp-nopen-std")
+            for key, col in PAPER_CONDITION_COLORS.items():
+                key_norm = normalize_condition(key)
+                if norm == key_norm or key_norm in norm or norm in key_norm:
+                    return col
+
+        # Use cached assignment or assign new color
         if condition not in self._assigned_colors:
-            # Check if this condition has a fixed color assignment
-            # Try exact match first, then normalised match
-            if self.use_fixed_colors and condition in PAPER_CONDITION_COLORS:
-                color = PAPER_CONDITION_COLORS[condition]
-            elif self.use_fixed_colors:
-                norm = normalize_condition(condition)
-                matched_color = None
-                for key, col in PAPER_CONDITION_COLORS.items():
-                    if normalize_condition(key) == norm:
-                        matched_color = col
-                        break
-                color = matched_color if matched_color else self.palette[self._next_color_idx % len(self.palette)]
-            else:
-                color = self.palette[self._next_color_idx % len(self.palette)]
+            color = self.palette[self._next_color_idx % len(self.palette)]
             self._assigned_colors[condition] = color
             self._next_color_idx += 1
         return self._assigned_colors[condition]
@@ -276,6 +280,23 @@ _global_color_manager.preassign_colors(PAPER_CONDITION_ORDER)
 
 def get_color(condition: str) -> str:
     """Get color for a condition using global color manager."""
+    norm = normalize_condition(condition)
+
+    # First, check if there's a custom color in PAPER_CONDITION_COLORS
+    # This allows colors to be updated after the module is imported
+    # Check exact match
+    if condition in PAPER_CONDITION_COLORS:
+        return PAPER_CONDITION_COLORS[condition]
+    # Try normalized exact match
+    if norm in PAPER_CONDITION_COLORS:
+        return PAPER_CONDITION_COLORS[norm]
+    # Try substring match (e.g., "rp-nopen" matches "rp-nopen-std")
+    for key, col in PAPER_CONDITION_COLORS.items():
+        key_norm = normalize_condition(key)
+        if norm == key_norm or key_norm in norm or norm in key_norm:
+            return col
+
+    # Fall back to color manager
     return _global_color_manager.get_color(condition)
 
 
@@ -299,3 +320,21 @@ def reset_colors():
 def preassign_colors(conditions: list[str]):
     """Pre-assign colors to conditions for consistent ordering."""
     _global_color_manager.preassign_colors(conditions)
+
+
+def load_custom_colors(colors_file: Optional[str] = None):
+    """
+    Load custom colors from a YAML file and update PAPER_CONDITION_COLORS.
+
+    Args:
+        colors_file: Path to YAML file containing color mappings
+    """
+    if colors_file:
+        from pathlib import Path
+        colors_path = Path(colors_file)
+        if colors_path.exists():
+            import yaml
+            with open(colors_path, 'r') as f:
+                custom_colors = yaml.safe_load(f)
+            if custom_colors:
+                PAPER_CONDITION_COLORS.update(custom_colors)

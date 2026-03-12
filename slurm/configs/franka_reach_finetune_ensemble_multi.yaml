@@ -1,0 +1,57 @@
+# =============================================================================
+# Franka Reach — Standard Ensemble MBPO-PPO Finetuning (Multi-Seed)
+# =============================================================================
+# Finetunes policies using a standard (non-latent) ensemble world model for
+# the Franka Panda reach manipulation task, with seed-aware checkpoint loading.
+#
+# Prerequisites:
+#   - Pretrain runs must exist for each seed (seed42, seed123, seed1001)
+#   - Model parameters must match pretrain configuration exactly
+#   - Ensure checkpoint file exists in each pretrain directory
+#
+# Usage:
+#   sbatch --job-name=fr-finetune-ens --partition=gpu_a100 --time=24:00:00 --array=0-2 slurm_train.sh configs/franka_reach_finetune_ensemble_multi.yaml
+# =============================================================================
+
+mode: finetune
+task: Template-Isaac-Reach-Franka-Finetune-v0
+max_iterations: 2500
+seeds: [42, 123, 1001]
+
+model:
+  # MUST match pretrain configuration exactly
+  ensemble_size: 5
+
+  # Raw state prediction (no latent space)
+  latent_mode: false
+  latent_dim: 256  # Ignored when latent_mode=false
+
+  # Randomized priors (must match pretrain)
+  prior_scale: 0.0
+  prior_hidden_div: 4
+  bootstrap: true
+  uncertainty_metric: std
+
+training:
+  num_envs: 1024
+  wm_learning_rate: 1e-4
+  wm_weight_decay: 1e-5
+  wm_batch_size: 1024
+  policy_learning_rate: 0.001
+
+imagination:
+  num_envs: 4096
+  num_steps: 24
+  uncertainty_penalty_weight: -0.00
+
+checkpoint:
+  resume: true
+  # Seed-aware loading: Each array task loads from matching pretrain seed
+  pretrain_run_name: "pretrain-ens"  # Base name, no seed suffix
+  pretrain_logs_dir: "logs/rsl_rl/franka_reach/"  # Optional: auto-detected for Franka
+  checkpoint: model_2000.pt  # Must exist in each pretrain directory
+
+logging:
+  logger: tensorboard
+  wandb_project: rwm-franka-reach
+  run_name: fr-finetune-ensemble

@@ -49,7 +49,7 @@ def evaluate_error_vs_uncertainty(
     horizon: int = 200,
     device: str = "cuda",
     velocity_only: bool = False,
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Evaluate prediction error and epistemic uncertainty during imagination rollouts.
     
@@ -61,8 +61,10 @@ def evaluate_error_vs_uncertainty(
         velocity_only: If True, compute errors only on velocity components (v, w, q_dot)
     
     Returns:
-        DataFrame with columns: horizon_t, error_rel_mean, error_rel_std, error_abs_mean, 
-                               error_abs_std, uncertainty_mean, uncertainty_std
+        Tuple of (aggregated_df, per_episode_df):
+        - aggregated_df: DataFrame with columns: horizon_t, error_rel_mean, error_rel_std, error_abs_mean, 
+                              error_abs_std, uncertainty_mean, uncertainty_std
+        - per_episode_df: DataFrame with per-episode data: horizon_t, error_rel, error_abs, uncertainty
     """
     # Convert device string to torch.device, fallback to CPU if CUDA unavailable
     device_str: str = str(device)
@@ -203,6 +205,23 @@ def evaluate_error_vs_uncertainty(
     per_step_errors_abs = np.array(per_step_errors_abs)
     per_step_uncertainties = np.array(per_step_uncertainties)
     
+    N = per_step_errors.shape[1]
+    
+    # Save per-episode data for risk_coverage and auroc
+    per_episode_results = []
+    for episode_idx in range(N):
+        for t in range(eval_horizon):
+            per_episode_results.append({
+                'horizon_t': t + history_horizon + 1,
+                'prediction_step': t + 1,
+                'error_rel': per_step_errors[t, episode_idx],
+                'error_abs': per_step_errors_abs[t, episode_idx],
+                'uncertainty': per_step_uncertainties[t, episode_idx],
+                'history_horizon': history_horizon,
+                'uncertainty_metric': uncertainty_metric,
+            })
+    
+    # Save aggregated per-step data
     results = []
     for t in range(eval_horizon):
         results.append({
@@ -218,24 +237,24 @@ def evaluate_error_vs_uncertainty(
             'uncertainty_metric': uncertainty_metric,  # Track which metric was used (std or variance)
         })
     
-    return pd.DataFrame(results)
+    return pd.DataFrame(results), pd.DataFrame(per_episode_results)
 
 
 def aggregate_results(
-    all_results: list[tuple[str, int, int, pd.DataFrame]],
+    all_results: list[tuple[str, int, int, pd.DataFrame, pd.DataFrame]],
     output_dir: Path,
 ):
     """
     Aggregate results across seeds for each condition.
     
     Args:
-        all_results: List of (condition, seed, checkpoint_step, DataFrame)
+        all_results: List of (condition, seed, checkpoint_step, aggregated_df, per_episode_df)
         output_dir: Where to save aggregated results
     """
     # Group by condition and checkpoint step
     grouped = defaultdict(lambda: defaultdict(list))
-    for condition, seed, step, df in all_results:
-        grouped[condition][step].append((seed, df))
+    for condition, seed, step, agg_df, _ in all_results:
+        grouped[condition][step].append((seed, agg_df))
     
     # Aggregate each condition
     for condition, step_data in grouped.items():
@@ -286,30 +305,45 @@ def aggregate_results(
         agg_df.to_csv(output_path, index=False)
         print(f"Saved: {output_path}")
     
-    # Also save combined file (append if exists)
-    all_records = []
-    for condition, seed, step, df in all_results:
-        for _, row in df.iterrows():
+    # Save combined aggregated file
+    all_agg_records = []
+    for condition, seed, step, agg_df, _ in all_results:
+        for _, row in agg_df.iterrows():
             record = row.to_dict()
             record['condition'] = condition
             record['seed'] = seed
             record['checkpoint_step'] = step
-            all_records.append(record)
+            all_agg_records.append(record)
     
-    combined_df = pd.DataFrame(all_records)
+    combined_agg_df = pd.DataFrame(all_agg_records)
     output_path = output_dir / "error_vs_uncertainty_all.csv"
     
     # Append to existing file if it exists
     if output_path.exists():
         existing_df = pd.read_csv(output_path)
-        combined_df = pd.concat([existing_df, combined_df], ignore_index=True)
+        combined_agg_df = pd.concat([existing_df, combined_agg_df], ignore_index=True)
         # Remove duplicates based on condition, seed, checkpoint_step, horizon_t
-        combined_df = combined_df.drop_duplicates(
+        combined_agg_df = combined_agg_df.drop_duplicates(
             subset=['condition', 'seed', 'checkpoint_step', 'horizon_t'],
             keep='last'
         )
     
-    combined_df.to_csv(output_path, index=False)
+    combined_agg_df.to_csv(output_path, index=False)
+    print(f"Saved: {output_path}")
+    
+    # Save combined per-episode file
+    all_episode_records = []
+    for condition, seed, step, _, per_episode_df in all_results:
+        for _, row in per_episode_df.iterrows():
+            record = row.to_dict()
+            record['condition'] = condition
+            record['seed'] = seed
+            record['checkpoint_step'] = step
+            all_episode_records.append(record)
+    
+    combined_episode_df = pd.DataFrame(all_episode_records)
+    output_path = output_dir / "error_vs_uncertainty_per_episode.csv"
+    combined_episode_df.to_csv(output_path, index=False)
     print(f"Saved: {output_path}")
 
 

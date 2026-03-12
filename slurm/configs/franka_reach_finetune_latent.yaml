@@ -1,0 +1,73 @@
+# =============================================================================
+# Franka Reach — Latent-Space Ensemble MBPO-PPO Finetuning
+# =============================================================================
+# Finetunes a policy using a latent-space ensemble world model for the
+# Franka Panda reach manipulation task.
+#
+# Prerequisites:
+#   - Update checkpoint.load_run to point to your latent pretrain run
+#   - Update checkpoint.system_dynamics_load_path to the full model path
+#   - Ensure latent parameters match pretrain configuration exactly
+#
+# Key differences from ANYmal-D finetune:
+#   - System state is 24D (7 joint_pos + 7 joint_vel + 7 torque + 3 ee_pos)
+#   - No contact/termination losses
+#   - Smaller num_envs (1024 real, 4096 imagination)
+#   - imagination.num_steps=24, max_episode_length=256 (from runner cfg)
+#   - Logs to logs/rsl_rl/franka_reach/
+#
+# Usage:
+#   sbatch --job-name=fr-finetune-latent --partition=gpu_a100 --time=24:00:00 \
+#          slurm_train.sh configs/franka_reach_finetune_latent.yaml
+# =============================================================================
+
+mode: finetune
+task: Template-Isaac-Reach-Franka-Finetune-v0
+max_iterations: 2500
+
+model:
+  # MUST match pretrain configuration exactly
+  ensemble_size: 5
+  latent_mode: true
+  latent_dim: 256
+  simnorm_dim: 8
+  encoder_hidden_dims: [256]
+  decoder_hidden_dims: [256]
+  latent_head_hidden_dims: [256]
+  encoder_dropout: 0.0
+
+  # Consistency loss (can be tuned differently from pretrain)
+  target_encoder_momentum: 0.99
+  consistency_coef: 1.0
+  reconstruction_coef: 1.0
+  encoder_consistency_coef: 0.0
+
+  # Randomized priors (must match pretrain)
+  prior_scale: 1.0
+  prior_hidden_div: 4
+  bootstrap: false
+  uncertainty_metric: std
+
+training:
+  num_envs: 1024
+  wm_learning_rate: 1e-4
+  wm_weight_decay: 1e-5
+  wm_batch_size: 1024
+  policy_learning_rate: 0.001
+
+imagination:
+  num_envs: 4096
+  num_steps: 24
+  uncertainty_penalty_weight: -0.0
+
+checkpoint:
+  resume: true
+  # UPDATE THESE: Point to your actual pretrain run
+  load_run: "2026-02-18_18-41-28_fr-pretrain-latent"
+  checkpoint: model_2000.pt
+  system_dynamics_load_path: "logs/rsl_rl/franka_reach/2026-02-18_18-41-28_fr-pretrain-latent/model_2000.pt"
+
+logging:
+  logger: tensorboard
+  wandb_project: rwm-franka-reach
+  run_name: fr-finetune-latent

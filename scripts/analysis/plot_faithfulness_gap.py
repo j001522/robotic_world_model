@@ -34,7 +34,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 
 # Import shared utilities
-from plot_utils import ColorManager, get_label, setup_publication_style, COLORBLIND_PALETTE, preassign_colors, get_color, condition_matches_any
+from plot_utils import ColorManager, get_label, setup_publication_style, COLORBLIND_PALETTE, preassign_colors, get_color, condition_matches_any, load_custom_colors
 
 # Setup publication style
 setup_publication_style()
@@ -305,10 +305,15 @@ def main():
                         help='Output format for figures')
     parser.add_argument('--conditions', type=str, default=None,
                         help='Comma-separated list of conditions to include (default: all)')
+    parser.add_argument('--colors', type=str, default=None,
+                        help='Path to YAML file with custom color mappings')
     parser.add_argument('--show', action='store_true',
                         help='Show plots interactively instead of saving')
-    
+
     args = parser.parse_args()
+
+    # Load custom colors if specified
+    load_custom_colors(args.colors)
     
     # Set output directory
     if args.output_dir is None:
