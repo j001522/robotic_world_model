@@ -220,3 +220,13 @@ class RslRlMbrlPpoAlgorithmCfg:
     
     During warmup, reward and value loss weights are set to zero, allowing the
     encoder and dynamics to stabilize before introducing task-relevant gradients."""
+
+    latent_native_imagination: bool = False
+    """Whether to keep imagination rollouts in latent space.
+    
+    When True and latent_mode is True, the imagination loop encodes the initial
+    state history once and then carries the latent state forward through dynamics
+    predictions without re-encoding. Decoding still happens every step for
+    analytical reward computation and actor observations, but the dynamics
+    transition z_t -> z_{t+1} stays in latent space, eliminating the
+    encode(decode(z)) != z compounding drift."""

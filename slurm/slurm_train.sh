@@ -210,6 +210,7 @@ add_override "policy_learning_rate" "agent.algorithm.policy_learning_rate"
 # Imagination overrides (for finetune)
 if [ "$MODE" = "finetune" ]; then
     add_override "uncertainty_penalty_weight" "agent.imagination.uncertainty_penalty_weight"
+    add_override "latent_native_imagination" "agent.algorithm.latent_native_imagination"
 fi
 
 # List overrides (need special handling for brackets)

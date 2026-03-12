@@ -131,6 +131,60 @@ class ManagerBasedMBRLEnv(ManagerBasedRLEnv):
         self._reset_imagination_command(command_ids)
         state_history = torch.cat([state_history[:, 1:].clone(), imagination_states.unsqueeze(1)], dim=1)
         return self.last_obs, rewards, dones, extras, state_history, action_history, self.epistemic_uncertainty
+
+    def latent_imagination_step(self, rollout_action, state_history, action_history, latent_state):
+        """Imagination step that keeps dynamics transitions in latent space.
+        
+        Instead of re-encoding decoded states at each step (which causes compounding
+        drift from encode(decode(z)) != z), this method:
+        1. Runs dynamics in latent space: forward_latent_imagination(z_t, a_t) -> z_{t+1}
+        2. Decodes z_{t+1} to raw states ONLY for reward computation and actor observations
+        3. Carries z_{t+1} forward directly for the next dynamics step
+        
+        The decoded raw state history is still maintained for:
+        - Reward computation (analytical rewards need physical quantities)
+        - Actor observations (built from physical quantities)
+        - Auxiliary heads (contacts, terminations, extensions use raw states)
+        
+        Args:
+            rollout_action: Raw (unnormalized) actions from the actor [batch, action_dim].
+            state_history: Decoded (normalized) raw state history [batch, horizon, state_dim].
+                Used for auxiliary heads and observation construction.
+            action_history: Normalized action history [batch, horizon, action_dim].
+            latent_state: Latent state history [batch, horizon, latent_dim].
+                The actual state carried through the dynamics loop.
+        
+        Returns:
+            Tuple of (obs, rewards, dones, extras, state_history, action_history,
+                      epistemic_uncertainty, latent_state) where latent_state is
+                      the updated latent history to carry forward.
+        """
+        rollout_action_normalized = self.imagination_action_normalizer(rollout_action)
+        action_history = torch.cat([action_history[:, 1:].clone(), rollout_action_normalized.unsqueeze(1)], dim=1)
+        
+        # Dynamics in latent space + decode for rewards + auxiliary heads on raw states
+        imagination_states, aleatoric_uncertainty, self.epistemic_uncertainty, extensions, contacts, terminations, next_latent = \
+            self.system_dynamics.forward_latent_imagination(latent_state, action_history, state_history, self.system_dynamics_model_ids)
+        
+        # Process decoded raw states for rewards (same as standard imagination_step)
+        imagination_states_denormalized = self.imagination_state_normalizer.inverse(imagination_states)
+        parsed_imagination_states = self._parse_imagination_states(imagination_states_denormalized)
+        parsed_extensions = self._parse_extensions(extensions)
+        parsed_contacts = self._parse_contacts(contacts)
+        self.termination_flags = self._parse_terminations(terminations)
+        self._compute_imagination_reward_terms(parsed_imagination_states, rollout_action, parsed_extensions, parsed_contacts)
+        rewards, dones, extras = self._post_imagination_step()
+        command_ids = self._process_command_env_ids()
+        self._reset_imagination_command(command_ids)
+        
+        # Update decoded raw state history (for auxiliary heads and observations at next step)
+        # imagination_states is already in normalized space (decoder output matches encoder input space)
+        state_history = torch.cat([state_history[:, 1:].clone(), imagination_states.unsqueeze(1)], dim=1)
+        
+        # Update latent state history (the actual dynamics state carried forward)
+        latent_state = torch.cat([latent_state[:, 1:].clone(), next_latent.unsqueeze(1)], dim=1)
+        
+        return self.last_obs, rewards, dones, extras, state_history, action_history, self.epistemic_uncertainty, latent_state
     
     
     def _post_imagination_step(self):      
