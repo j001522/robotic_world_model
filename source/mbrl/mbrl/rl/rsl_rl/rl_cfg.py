@@ -76,9 +76,33 @@ class RslRlSystemDynamicsCfg:
     When > 0, adds a loss term that trains the online encoder to produce representations 
     consistent with dynamics predictions."""
 
-    residual_decoder: bool = False
-    """Whether the decoder predicts residuals (s_{t+1} = s_t + Decoder(z, s_t)) instead of absolute states.
-    Only used when latent_mode=True. Default False preserves original behavior."""
+    # --- Phase 3: Reward and Value heads ---
+    reward_head_enabled: bool = False
+    """Whether to add a reward prediction head. When True, predicts scalar reward from cat(z, a).
+    Only effective when latent_mode=True. Default False preserves Phase 2 behavior."""
+
+    value_head_enabled: bool = False
+    """Whether to add a value prediction head ensemble. When True, predicts scalar V(z).
+    Only effective when latent_mode=True. Default False preserves Phase 2 behavior."""
+
+    value_ensemble_size: int = 5
+    """Number of value heads in the ensemble. Each dynamics ensemble member i maps to
+    value head i % value_ensemble_size."""
+
+    reward_hidden_dims: list[int] | None = None
+    """Hidden layer widths for the reward head. Defaults to [256, 256] if None."""
+
+    value_hidden_dims: list[int] | None = None
+    """Hidden layer widths for the value heads. Defaults to [256, 256] if None."""
+
+    reward_prior_scale: float = 1.0
+    """Scale for the reward head's frozen random prior. 0 = no prior."""
+
+    value_prior_scale: float = 1.0
+    """Scale for the value heads' frozen random priors. 0 = no prior."""
+
+    value_gamma: float = 0.99
+    """Discount factor for TD value targets: V_target = r + gamma * (1 - done) * V(z')."""
 
 
 @configclass
@@ -190,3 +214,9 @@ class RslRlMbrlPpoAlgorithmCfg:
     
     system_dynamics_eval_traj_noise_scale: list[float] = MISSING
     """The noise scale for the evaluation trajectory for the system dynamics."""
+
+    system_dynamics_rv_warmup_steps: int = 0
+    """Number of optimizer steps before reward/value head losses are activated (Phase 3).
+    
+    During warmup, reward and value loss weights are set to zero, allowing the
+    encoder and dynamics to stabilize before introducing task-relevant gradients."""

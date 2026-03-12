@@ -1,0 +1,95 @@
+# =============================================================================
+# Latent-Space Ensemble MBPO-PPO Finetuning with Reward + Value Heads (Phase 3)
+# =============================================================================
+# Finetunes a policy using a latent-space ensemble world model that includes
+# reward and value heads (Phase 3). The reward/value heads provide task-relevant
+# gradient signals to the encoder during continued world model training.
+#
+# Prerequisites:
+#   - Update checkpoint paths to point to your Phase 3 pretrain run
+#   - Model parameters (ensemble_size, latent_dim, reward/value head dims)
+#     MUST match the pretrain configuration exactly
+#
+# Usage:
+#   sbatch --job-name=finetune-latent-rv --partition=gpu_a100 --time=24:00:00 \
+#          slurm_train.sh configs/finetune_latent_rv.yaml
+# =============================================================================
+
+mode: finetune
+task: Template-Isaac-Velocity-Flat-Anymal-D-Finetune-v0
+max_iterations: 2500
+
+model:
+  # MUST match pretrain configuration exactly
+  ensemble_size: 5
+  latent_mode: true
+  latent_dim: 256
+  simnorm_dim: 8
+  encoder_hidden_dims: [256]
+  decoder_hidden_dims: [256]
+  latent_head_hidden_dims: [256]
+  encoder_dropout: 0.0
+  
+  # Consistency loss
+  target_encoder_momentum: 0.99
+  consistency_coef: 2.0
+  reconstruction_coef: 1.0
+  encoder_consistency_coef: 0.0
+  
+  # Randomized priors (must match pretrain)
+  prior_scale: 1.0
+  prior_hidden_div: 4
+  bootstrap: false
+  uncertainty_metric: std
+  
+  # Phase 3: Reward and Value heads (must match pretrain)
+  reward_head_enabled: true
+  value_head_enabled: true
+  value_ensemble_size: 5
+  reward_hidden_dims: [256, 256]
+  value_hidden_dims: [256, 256]
+  reward_prior_scale: 1.0
+  value_prior_scale: 1.0
+  value_gamma: 0.99
+
+architecture:
+  # Backbone type: rnn (GRU) — MUST match pretrain
+  # Change to "xlstm" and add xlstm_* params to use xLSTM backbone instead
+  type: rnn
+  rnn_type: gru
+  
+  # Head shapes (shared across all backbone types)
+  state_mean_shape: [128]
+  state_logstd_shape: [128]
+  extension_shape: [128]
+  contact_shape: [128]
+  termination_shape: [128]
+
+training:
+  num_envs: 4096
+  wm_learning_rate: 1e-4
+  wm_weight_decay: 1e-5
+  wm_batch_size: 1024
+  policy_learning_rate: 0.001
+  # Loss weights for reward and value heads (conservative: avoid destabilizing dynamics)
+  reward_loss_weight: 0.1
+  value_loss_weight: 0.01
+  # No warmup needed for finetuning (dynamics already pretrained)
+  rv_warmup_steps: 0
+
+imagination:
+  num_envs: 4096
+  num_steps: 100
+  uncertainty_penalty_weight: -0.0
+
+checkpoint:
+  resume: true
+  # UPDATE THIS: Path to your Phase 3 pretrain run
+  load_run: "2026-02-16_17-19-14_pretrain-latent-rv"
+  checkpoint: model_2500.pt
+  system_dynamics_load_path: "logs/rsl_rl/anymal_d_flat/2026-02-16_17-19-14_pretrain-latent-rv/model_2500.pt"
+
+logging:
+  logger: tensorboard
+  wandb_project: rwm-anymal
+  run_name: finetune-latent-rv
