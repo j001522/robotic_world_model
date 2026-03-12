@@ -190,3 +190,13 @@ class RslRlMbrlPpoAlgorithmCfg:
     
     system_dynamics_eval_traj_noise_scale: list[float] = MISSING
     """The noise scale for the evaluation trajectory for the system dynamics."""
+
+    latent_native_imagination: bool = False
+    """Whether to keep imagination rollouts in latent space.
+    
+    When True and latent_mode is True, the imagination loop encodes the initial
+    state history once and then carries the latent state forward through dynamics
+    predictions without re-encoding. Decoding still happens every step for
+    analytical reward computation and actor observations, but the dynamics
+    transition z_t -> z_{t+1} stays in latent space, eliminating the
+    encode(decode(z)) != z compounding drift."""
