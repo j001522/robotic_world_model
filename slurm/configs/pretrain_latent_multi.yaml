@@ -50,6 +50,7 @@ imagination:
   num_envs: 4096
   num_steps: 100
   uncertainty_penalty_weight: 0.0  # No penalty during pretrain
+  latent_native_imagination: false  # Not relevant during pretrain (no imagination)
 
 logging:
   logger: tensorboard

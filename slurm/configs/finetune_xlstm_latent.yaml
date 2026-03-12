@@ -78,6 +78,7 @@ imagination:
   num_envs: 4096
   num_steps: 100
   uncertainty_penalty_weight: 0.0
+  latent_native_imagination: true  # Keep dynamics in latent space during imagination (no re-encoding)
 
 checkpoint:
   resume: true
