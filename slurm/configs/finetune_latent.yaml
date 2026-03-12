@@ -1,0 +1,65 @@
+# =============================================================================
+# Latent-Space Ensemble MBPO-PPO Finetuning
+# =============================================================================
+# Finetunes a policy using a latent-space ensemble world model.
+# Combines Phase 1+2 architecture with imagination rollouts.
+#
+# Prerequisites:
+#   - Update checkpoint.load_run to point to your latent pretrain run
+#   - Ensure latent parameters match pretrain configuration exactly
+#
+# Usage:
+#   sbatch --job-name=finetune-latent --partition=gpu_a100 --time=24:00:00 \
+#          slurm_train.sh configs/finetune_latent.yaml
+# =============================================================================
+
+mode: finetune
+task: Template-Isaac-Velocity-Flat-Anymal-D-Finetune-v0
+max_iterations: 2500
+
+model:
+  # MUST match pretrain configuration exactly
+  ensemble_size: 5
+  latent_mode: true
+  latent_dim: 256
+  simnorm_dim: 8
+  encoder_hidden_dims: [256]
+  decoder_hidden_dims: [256]
+  latent_head_hidden_dims: [256]
+  encoder_dropout: 0.0
+  
+  # Consistency loss (can be reduced during finetune if needed)
+  target_encoder_momentum: 0.99
+  consistency_coef: 1.0
+  reconstruction_coef: 1.0
+  encoder_consistency_coef: 0.0
+  
+  # Randomized priors (must match pretrain)
+  prior_scale: 1.0
+  prior_hidden_div: 4
+  bootstrap: false
+  uncertainty_metric: std
+
+training:
+  num_envs: 4096
+  wm_learning_rate: 1e-4
+  wm_weight_decay: 1e-5
+  wm_batch_size: 1024
+  policy_learning_rate: 0.001
+
+imagination:
+  num_envs: 4096
+  num_steps: 100
+  uncertainty_penalty_weight: -0.0
+
+checkpoint:
+  resume: true
+  # UPDATE THIS: Path to your latent pretrain run
+  load_run: "2026-02-09_15-16-58_pretrain-latent-EMA_enc"
+  checkpoint: model_2500.pt
+  system_dynamics_load_path: "logs/rsl_rl/anymal_d_flat/2026-02-09_15-16-58_pretrain-latent-EMA_enc/model_2500.pt"
+
+logging:
+  logger: tensorboard
+  wandb_project: rwm-anymal
+  run_name: finetune-latent-EMA-std-0.0

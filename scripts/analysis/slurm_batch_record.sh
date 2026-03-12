@@ -35,8 +35,14 @@ NUM_ENVS="${NUM_ENVS:-64}"
 SKIP_EXISTING="${SKIP_EXISTING:-true}"
 
 # Fixed configuration
-TASK="Template-Isaac-Velocity-Flat-Anymal-D-Finetune-v0"
-LOG_DIR="logs/rsl_rl/anymal_d_flat"
+
+#TASK="Template-Isaac-Velocity-Flat-Anymal-D-Finetune-v0"
+#LOG_DIR="logs/rsl_rl/anymal_d_flat"
+
+TASK="Template-Isaac-Reach-Franka-Finetune-v0"
+LOG_DIR="logs/rsl_rl/franka_reach"
+
+
 
 echo "========================================"
 echo "Batch Record Trajectories"

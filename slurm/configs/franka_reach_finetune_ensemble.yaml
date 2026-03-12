@@ -1,0 +1,57 @@
+# =============================================================================
+# Franka Reach — Standard Ensemble MBPO-PPO Finetuning
+# =============================================================================
+# Finetunes a policy using a standard (non-latent) ensemble world model for
+# the Franka Panda reach manipulation task.
+#
+# Prerequisites:
+#   - Update checkpoint.load_run to point to your ensemble pretrain run
+#   - Update checkpoint.system_dynamics_load_path to the full model path
+#   - Ensure model parameters match pretrain configuration exactly
+#
+# Usage:
+#   sbatch --job-name=fr-finetune-ens --partition=gpu_a100 --time=24:00:00 \
+#          slurm_train.sh configs/franka_reach_finetune_ensemble.yaml
+# =============================================================================
+
+mode: finetune
+task: Template-Isaac-Reach-Franka-Finetune-v0
+max_iterations: 2500
+
+model:
+  # MUST match pretrain configuration exactly
+  ensemble_size: 5
+
+  # Raw state prediction (no latent space)
+  latent_mode: false
+  latent_dim: 256  # Ignored when latent_mode=false
+
+  # Randomized priors (must match pretrain)
+  prior_scale: 0.0
+  prior_hidden_div: 4
+  bootstrap: true
+  uncertainty_metric: std
+
+training:
+  num_envs: 1024
+  wm_learning_rate: 1e-4
+  wm_weight_decay: 1e-5
+  wm_batch_size: 1024
+  policy_learning_rate: 0.001
+
+imagination:
+  num_envs: 4096
+  num_steps: 24
+  uncertainty_penalty_weight: -0.0
+
+checkpoint:
+  resume: true
+  # UPDATE THESE: Point to your actual pretrain run
+  load_run: "2026-02-18_18-41-28_fr-pretrain-ensemble"
+  checkpoint: model_2000.pt
+  system_dynamics_load_path: "logs/rsl_rl/franka_reach/2026-02-18_18-41-28_fr-pretrain-ensemble/model_2000.pt"
+
+logging:
+  logger: tensorboard
+  wandb_project: rwm-franka-reach
+  run_name: fr-finetune-ensemble

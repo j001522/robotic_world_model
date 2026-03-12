@@ -1,0 +1,47 @@
+# =============================================================================
+# Franka Reach — Standard Ensemble World Model Pretraining (Multi-Seed)
+# =============================================================================
+# Trains a 5-member ensemble without latent space (raw state prediction)
+# for the Franka Panda reach manipulation task, with multiple seeds.
+#
+# Usage:
+#   sbatch --job-name=fr-pretrain-ens --partition=gpu_a100 --time=24:00:00 \
+#          --array=0-2 slurm_train.sh configs/franka_reach_pretrain_multi.yaml
+# =============================================================================
+
+mode: pretrain
+task: Template-Isaac-Reach-Franka-Pretrain-v0
+max_iterations: 2000
+seeds: [42, 123, 1001]
+
+model:
+  # Ensemble configuration
+  ensemble_size: 5
+
+  # Raw state prediction (no latent space)
+  latent_mode: false
+  latent_dim: 256  # Ignored when latent_mode=false
+
+  # Randomized priors
+  prior_scale: 1.0
+  prior_hidden_div: 4
+  bootstrap: false
+  uncertainty_metric: std
+
+training:
+  num_envs: 1024
+  wm_learning_rate: 1e-4
+  wm_weight_decay: 1e-5
+  wm_batch_size: 1024
+  policy_learning_rate: 0.001
+
+imagination:
+  # Imagination is disabled in pretrain mode
+  num_envs: 1024
+  num_steps: 100
+  uncertainty_penalty_weight: 0.0
+
+logging:
+  logger: tensorboard
+  wandb_project: rwm-franka-reach
+  run_name: fr-pretrain-rp-ens

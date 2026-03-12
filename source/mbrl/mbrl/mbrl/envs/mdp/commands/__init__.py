@@ -5,5 +5,5 @@
 
 """Various command terms that can be used in the environment."""
 
-from .pose_command import UniformPoseCommand_Visualize
+from .pose_command import UniformPoseCommand_Visualize, SampleUniformPoseCommand
 from .velocity_command import UniformVelocityCommand_Visualize, SampleUniformVelocityCommand
