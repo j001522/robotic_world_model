@@ -1,0 +1,57 @@
+# =============================================================================
+# Latent-Space World Model Pretraining (Phase 1+2) - Multi-Seed Example
+# =============================================================================
+# This config runs the same training for 3 different seeds.
+# Training runs sequentially, with -seed<N> appended to run_name.
+#
+# For quick tests, copy pretrain_latent.yaml (no seeds field, defaults to seed 42)
+# =============================================================================
+
+mode: pretrain
+task: Template-Isaac-Velocity-Flat-Anymal-D-Pretrain-v0
+max_iterations: 2500
+seeds: [42, 123, 1001]   # Run training for each seed sequentially
+
+model:
+  # Ensemble configuration
+  ensemble_size: 5
+
+  # Latent-space architecture (Phase 1)
+  latent_mode: true
+  latent_dim: 256
+  simnorm_dim: 8
+  encoder_hidden_dims: [256]
+  decoder_hidden_dims: [256]
+  latent_head_hidden_dims: [256]
+  encoder_dropout: 0.0
+
+  # Phase 2: Consistency loss with EMA target encoder
+  target_encoder_momentum: 0.99
+  consistency_coef: 0.0
+  reconstruction_coef: 1.0
+  encoder_consistency_coef: 0.0  # Set to 1.0 to enable bidirectional loss
+
+  # Randomized priors
+  prior_scale: 1.0
+  prior_hidden_div: 4
+  bootstrap: false
+  uncertainty_metric: std
+
+training:
+  num_envs: 4096
+  wm_learning_rate: 1e-4
+  wm_weight_decay: 1e-5
+  wm_batch_size: 1024
+  policy_learning_rate: 0.001  # Not used in pretrain but set for consistency
+
+imagination:
+  # Imagination is disabled in pretrain mode
+  # These parameters are kept for config consistency
+  num_envs: 4096
+  num_steps: 100
+  uncertainty_penalty_weight: 0.0  # No penalty during pretrain
+
+logging:
+  logger: tensorboard
+  wandb_project: rwm-anymal
+  run_name: pretrain-latent-rec_only_bi

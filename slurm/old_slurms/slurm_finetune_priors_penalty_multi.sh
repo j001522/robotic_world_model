@@ -43,7 +43,7 @@ PRIOR_HIDDEN_DIV=4
 BOOTSTRAP=False          # No bootstrap (priors provide diversity)
 
 # Uncertainty penalty
-UNCERTAINTY_PENALTY=-0.06  # PENALTY ENABLED
+UNCERTAINTY_PENALTY=-0.00  # PENALTY ENABLED
 UNCERTAINTY_METRIC="std"  
 
 # Logging

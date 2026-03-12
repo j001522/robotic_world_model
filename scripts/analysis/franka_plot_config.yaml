@@ -1,0 +1,103 @@
+# Example configuration file for plot_all.py
+#
+# Usage:
+#   python plot_all.py --config plot_config.yaml
+#
+# All settings can also be overridden via command-line arguments.
+
+# ============================================================================
+# Directories
+# ============================================================================
+
+results_dir: /gpfs/work4/0/prjs0951/Giacomo/robotic_world_model/results/paper_franka
+output_dir: /gpfs/work4/0/prjs0951/Giacomo/robotic_world_model/results/paper_franka/figures_IROS
+
+# Output format: pdf, png, or svg
+format: pdf
+
+# ============================================================================
+# Condition Filtering
+# ============================================================================
+
+# Include only these conditions (comment out to include all)
+# Supports partial matching: "rp-pen" matches "rp-pen025-std", "rp-pen006-std", etc.
+#conditions:
+#  - bs-nopen
+#  - rp-pen025-std
+#  - rp-pen006-std
+#  - bs-pen025
+#  - rp-nopen-std
+
+
+# Exclude these conditions (applied after include filter)
+# exclude:
+#   - rp-pen025-var
+
+# ============================================================================
+# Custom Colors
+# ============================================================================
+
+# Override default colors for specific conditions
+# Uses hex color codes
+#colors:
+#  bs-nopen: '#EE7733'        # Orange - Baseline
+#  bs-pen025: '#DD2222'       # Red - Baseline + Penalty
+#  rp-nopen: '#228833'        # Green - Random Priors, No Penalty
+#  rp-nopen-std: '#228833'    # Green - Random Priors, No Penalty (with -std suffix)
+#  rp-pen006-std: '#0077BB'   # Blue
+#  rp-pen025-std: '#66CCEE'   # Light Blue
+
+# ============================================================================
+# Custom Labels
+# ============================================================================
+
+# Override auto-generated labels for specific conditions
+#labels:
+# bs-nopen: 'Baseline (Bootstrap)'
+#   rp-pen025-std: 'Random Priors + Penalty'
+
+# ============================================================================
+# Smoothing Parameters
+# ============================================================================
+
+# Window size for smoothing reward curves (set to 1 for no smoothing)
+smooth_window: 20
+
+# Window size for smoothing autoregressive error curves
+autoregressive_smooth_window: 5
+
+# ============================================================================
+# Which Plots to Generate
+# ============================================================================
+
+plots:
+  training_curves: true
+  hallucination_horizon: true
+  noise_robustness: true
+  error_vs_uncertainty: true
+  correlation_by_horizon: true
+  faithfulness_gap: false
+  # NEW: IROS Paper Figures
+  long_horizon: true
+  hallucination_distribution: true
+  decision_utility: true
+
+# ============================================================================
+# Per-Plot Settings
+# ============================================================================
+
+hallucination_horizon:
+  error_type: rel  # 'rel' for relative error, 'abs' for absolute
+
+error_vs_uncertainty:
+  error_type: rel  # 'rel' for relative error, 'abs' for absolute
+
+# NEW: IROS Paper Plot Settings
+long_horizon:
+  velocity_only: false  # Plot velocity-only errors in inset
+
+hallucination_distribution:
+  plot_type: violin  # 'box' or 'violin'
+
+decision_utility:
+  horizon_filter: 30  # Minimum horizon for AUROC (default: 30)

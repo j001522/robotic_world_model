@@ -1,0 +1,58 @@
+# =============================================================================
+# Ensemble MBPO-PPO Finetuning
+# =============================================================================
+# Finetunes a policy using imagination rollouts from a pretrained ensemble.
+# The ensemble provides epistemic uncertainty which is used to penalize
+# the policy for visiting high-uncertainty regions.
+#
+# Prerequisites:
+#   - Update checkpoint.load_run to point to your pretrain run
+#   - Ensure ensemble parameters match pretrain configuration
+#
+# Usage:
+#   sbatch --job-name=finetune-ensemble --partition=gpu_a100 --time=24:00:00 \
+#          slurm_train.sh configs/finetune_ensemble.yaml
+# =============================================================================
+
+mode: finetune
+task: Template-Isaac-Velocity-Flat-Anymal-D-Finetune-v0
+max_iterations: 2500
+
+model:
+  # MUST match pretrain configuration
+  ensemble_size: 5
+  latent_mode: false
+  
+  # Randomized priors (must match pretrain)
+  prior_scale: 1.0
+  prior_hidden_div: 4
+  bootstrap: false
+  uncertainty_metric: std
+
+training:
+  num_envs: 4096
+  wm_learning_rate: 1e-4
+  wm_weight_decay: 1e-5
+  wm_batch_size: 1024
+  policy_learning_rate: 0.001
+
+imagination:
+  num_envs: 4096
+  num_steps: 100
+  # Uncertainty penalty (negative = penalty for high uncertainty)
+  # -0.1 = mild penalty (conservative)
+  # -1.0 = strong penalty (very conservative, as used in offline U-RWM)
+  # 0.0 = no penalty (same as single model)
+  uncertainty_penalty_weight: -0.25
+
+checkpoint:
+  resume: true
+  # UPDATE THIS: Path to your pretrain run directory (timestamp folder)
+  load_run: "2026-01-25_11-57-10_pretrain-ensemble"
+  checkpoint: model_2500.pt
+  system_dynamics_load_path: "logs/rsl_rl/anymal_d_flat/2026-01-25_11-57-10_pretrain-ensemble/model_2500.pt"
+
+logging:
+  logger: tensorboard
+  wandb_project: rwm-anymal
+  run_name: finetune-ensemble-std-0.1

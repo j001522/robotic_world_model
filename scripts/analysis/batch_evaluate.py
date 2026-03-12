@@ -3,7 +3,8 @@
 Batch evaluate all trained models using pre-recorded trajectories.
 
 This script discovers all finetune runs and their corresponding trajectory files,
-then runs all evaluations (hallucination horizon, noise robustness, error vs uncertainty).
+then runs all evaluations (hallucination horizon, noise robustness, error vs uncertainty,
+correlation by horizon).
 
 Usage:
     # Run all evaluations
@@ -40,7 +41,9 @@ Output structure:
     │   └── *.csv
     ├── noise_robustness/
     │   └── *.csv
-    └── error_vs_uncertainty/
+    ├── error_vs_uncertainty/
+    │   └── *.csv
+    └── correlation_by_horizon/
         └── *.csv
 """
 
@@ -126,6 +129,8 @@ def match_trajectories_to_checkpoints(
     """
     Match trajectory files to their corresponding checkpoints.
     
+    Finds the closest checkpoint step for each trajectory step.
+    
     Returns:
         List of (condition, seed, step, trajectory_path, checkpoint_path)
     """
@@ -147,7 +152,12 @@ def match_trajectories_to_checkpoints(
                 if step in ckpt_steps:
                     matches.append((condition, seed, step, traj_path, ckpt_steps[step]))
                 else:
-                    print(f"  WARNING: No checkpoint for {condition} seed {seed} step {step}")
+                    # Find closest checkpoint step
+                    available_steps = sorted(ckpt_steps.keys())
+                    closest_step = min(available_steps, key=lambda s: abs(s - step))
+                    ckpt_path = ckpt_steps[closest_step]
+                    print(f"  Using closest checkpoint for {condition} seed {seed}: trajectory step {step} -> checkpoint step {closest_step}")
+                    matches.append((condition, seed, step, traj_path, ckpt_path))
     
     return matches
 
@@ -206,7 +216,29 @@ def evaluate_error_vs_uncertainty_single(
     from evaluate_error_vs_uncertainty import evaluate_error_vs_uncertainty
     
     try:
-        df = evaluate_error_vs_uncertainty(
+        agg_df, per_episode_df = evaluate_error_vs_uncertainty(
+            str(checkpoint_path),
+            str(trajectory_path),
+            horizon=horizon,
+            device=device,
+        )
+        return agg_df
+    except Exception as e:
+        print(f"    ERROR: {e}")
+        return None
+
+
+def evaluate_correlation_by_horizon_single(
+    checkpoint_path: Path,
+    trajectory_path: Path,
+    horizon: int = 200,
+    device: str = "cuda",
+) -> Optional[pd.DataFrame]:
+    """Evaluate correlation by horizon for a single checkpoint/trajectory pair."""
+    from evaluate_correlation_by_horizon import evaluate_correlation_by_horizon
+    
+    try:
+        df = evaluate_correlation_by_horizon(
             str(checkpoint_path),
             str(trajectory_path),
             horizon=horizon,
@@ -216,6 +248,205 @@ def evaluate_error_vs_uncertainty_single(
     except Exception as e:
         print(f"    ERROR: {e}")
         return None
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def aggregate_hallucination_single(
+    checkpoint_path: Path,
+    trajectory_path: Path,
+    error_threshold: float = 1.0,
+    short_horizon_threshold: float = 30.0,
+    history_horizon: int = 1,
+    device: str = "cuda",
+) -> Optional[pd.DataFrame]:
+    """Aggregate hallucination distribution for a single checkpoint/trajectory pair."""
+    from evaluate_hallucination_horizon import evaluate_hallucination_horizon_offline
+    from aggregate_hallucination import compute_hallucination_horizon, aggregate_hallucination_distribution
+    
+    try:
+        df = evaluate_hallucination_horizon_offline(
+            str(checkpoint_path),
+            str(trajectory_path),
+            horizon=200,
+            device=device,
+            velocity_only=True,
+        )
+        if df is None:
+            return None
+        
+        df['condition'] = 'unknown'
+        df['seed'] = 0
+        df['checkpoint_step'] = 0
+        
+        per_episode_df = compute_hallucination_horizon(
+            df,
+            error_threshold=error_threshold,
+            threshold_percentile=95.0,
+            baseline_horizon=5,
+            history_horizon=history_horizon,
+            velocity_only=True,
+        )
+        
+        aggregated_df = aggregate_hallucination_distribution(per_episode_df, short_horizon_threshold)
+        return aggregated_df
+    except Exception as e:
+        print(f"    ERROR: {e}")
+        return None
+
+
+def run_iros_aggregations(
+    output_dir: Path,
+    aggregations: list[str],
+):
+    """Run IROS paper aggregations on already-generated CSV files."""
+    if not aggregations:
+        return
+    
+    print("\n" + "=" * 60)
+    print("Running IROS Paper Aggregations")
+    print("=" * 60)
+    
+    for agg_type in aggregations:
+        print(f"\nProcessing {agg_type}...")
+        try:
+            if agg_type == 'growth_rates':
+                from compute_growth_rates import compute_growth_rates_single as growth_rates_func
+                input_dir = output_dir / 'error_vs_uncertainty'
+                output_subdir = output_dir / 'growth_rates'
+            elif agg_type == 'horizon_auc':
+                from compute_horizon_auc import compute_horizon_auc_single as horizon_auc_func
+                input_dir = output_dir / 'hallucination_horizon'
+                output_subdir = output_dir / 'horizon_auc'
+            elif agg_type == 'risk_coverage':
+                from compute_risk_coverage import compute_risk_coverage_single as risk_coverage_func
+                input_dir = output_dir / 'error_vs_uncertainty'
+                output_subdir = output_dir / 'risk_coverage'
+                horizon_filter_val = 30
+            elif agg_type == 'auroc':
+                from compute_auroc import compute_auroc_single as auroc_func
+                input_dir = output_dir / 'error_vs_uncertainty'
+                output_subdir = output_dir / 'auroc'
+                horizon_filter_val = 30
+            elif agg_type == 'hallucination_stats':
+                from aggregate_hallucination import compute_hallucination_horizon, aggregate_hallucination_distribution
+                
+                # Read hallucination_horizon CSVs and compute per-episode horizons
+                hh_all_data = []
+                csv_files = sorted((output_dir.parent / 'hallucination_horizon').glob("hallucination_horizon_*.csv"))
+                for csv_file in csv_files:
+                    if 'all.csv' in csv_file.name:
+                        continue
+                    print(f"  Processing {csv_file.name}...")
+                    try:
+                        df = pd.read_csv(csv_file)
+                        hh_all_data.append(df)
+                    except Exception as e:
+                        print(f"    ERROR: {e}")
+                
+                if hh_all_data:
+                    hh_combined = pd.concat(hh_all_data, ignore_index=True)
+                    
+                    # Save per-episode data for distribution plot
+                    output_episode_file = output_subdir / "hallucination_horizon_all.csv"
+                    hh_combined.to_csv(output_episode_file, index=False)
+                    print(f"  Saved: {output_episode_file}")
+                    
+                    # Compute hallucination horizons with shared baseline threshold
+                    # Use ensemble-nopen as baseline (first condition alphabetically)
+                    baseline_conditions = sorted([c for c in hh_combined['condition'].unique()])
+                    baseline_condition = baseline_conditions[0] if baseline_conditions else None
+                    print(f"  Using shared threshold from baseline: {baseline_condition}")
+                    
+                    hh_per_episode_df = compute_hallucination_horizon(
+                        hh_combined,
+                        error_threshold=None,
+                        threshold_percentile=95.0,
+                        baseline_horizon=5,
+                        history_horizon=1,
+                        velocity_only=True,
+                        baseline_condition=baseline_condition,
+                    )
+                    
+                    output_hh_file = output_subdir / "hallucination_horizon_all.csv"
+                    hh_per_episode_df.to_csv(output_hh_file, index=False)
+                    print(f"  Saved: {output_hh_file}")
+                    
+                    # Also save per-condition files
+                    for condition in hh_per_episode_df['condition'].unique():
+                        cond_df = hh_per_episode_df[hh_per_episode_df['condition'] == condition]
+                        output_cond_file = output_subdir / f"hallucination_horizon_{condition}.csv"
+                        cond_df.to_csv(output_cond_file, index=False)
+                        print(f"    Saved: {output_cond_file}")
+                    
+                    # Compute and save aggregated distribution
+                    aggregated_df = aggregate_hallucination_distribution(hh_per_episode_df, short_threshold=30.0)
+                    output_agg_file = output_subdir / "hallucination_distribution_all.csv"
+                    aggregated_df.to_csv(output_agg_file, index=False)
+                    print(f"  Saved: {output_agg_file}")
+            else:
+                # For risk_coverage and auroc, use per_episode CSV
+                if agg_type in ['risk_coverage', 'auroc']:
+                    csv_file = input_dir / "error_vs_uncertainty_per_episode.csv"
+                    if not csv_file.exists():
+                        print(f"  ERROR: {csv_file} not found. Run evaluations first.")
+                        continue
+                    print(f"  Processing {csv_file.name}...")
+                    df = pd.read_csv(csv_file)
+                    
+                    if agg_type == 'risk_coverage':
+                        result_df = risk_coverage_func(df, horizon_filter=horizon_filter_val)
+                    elif agg_type == 'auroc':
+                        result_df = auroc_func(df, per_horizon=True, horizon_min=horizon_filter_val)
+                    
+                    output_file = output_subdir / f"{agg_type}_all.csv"
+                    result_df.to_csv(output_file, index=False)
+                    print(f"  Saved: {output_file}")
+                    
+                    # Also save per-condition files for plotting
+                    if 'condition' in result_df.columns:
+                        for condition in result_df['condition'].unique():
+                            cond_df = result_df[result_df['condition'] == condition]
+                            output_cond_file = output_subdir / f"{agg_type}_{condition}.csv"
+                            cond_df.to_csv(output_cond_file, index=False)
+                            print(f"    Saved: {output_cond_file}")
+                else:
+                    # For growth_rates and horizon_auc, use per-condition CSV files
+                    csv_files = sorted(input_dir.glob("*.csv"))
+                    if not csv_files:
+                        print(f"  No CSV files found in {input_dir}")
+                        continue
+                    
+                    for csv_file in csv_files:
+                        if 'all.csv' in csv_file.name or 'per_episode.csv' in csv_file.name:
+                            continue
+                        print(f"  Processing {csv_file.name}...")
+                        try:
+                            df = pd.read_csv(csv_file)
+                            
+                            if agg_type == 'growth_rates':
+                                result_df = growth_rates_func(df)
+                            elif agg_type == 'horizon_auc':
+                                result_df = horizon_auc_func(df)
+                            
+                            output_file = output_subdir / csv_file.name
+                            result_df.to_csv(output_file, index=False)
+                        except Exception as e:
+                            print(f"    ERROR: {e}")
+                
+                print(f"  Saved results to {output_subdir}")
+        except Exception as e:
+            print(f"  ERROR processing {agg_type}: {e}")
 
 
 def run_evaluations(
@@ -234,6 +465,7 @@ def run_evaluations(
         'hallucination_horizon': [],
         'noise_robustness': [],
         'error_vs_uncertainty': [],
+        'correlation_by_horizon': [],
     }
     
     for i, (condition, seed, step, traj_path, ckpt_path) in enumerate(matches):
@@ -245,32 +477,24 @@ def run_evaluations(
             continue
         
         # Run requested evaluations
-        if 'hallucination_horizon' in evaluations:
-            print("  Evaluating hallucination horizon...")
-            df = evaluate_hallucination_horizon_single(ckpt_path, traj_path, horizon, device)
-            if df is not None:
-                df['condition'] = condition
-                df['seed'] = seed
-                df['checkpoint_step'] = step
-                results['hallucination_horizon'].append(df)
+        for eval_type in ['hallucination_horizon', 'noise_robustness', 'error_vs_uncertainty', 'correlation_by_horizon']:
+            if eval_type in evaluations:
+                print(f"Evaluating {eval_type}...")
+                if eval_type == 'hallucination_horizon':
+                    df = evaluate_hallucination_horizon_single(ckpt_path, traj_path, horizon, device)
+                elif eval_type == 'noise_robustness':
+                    df = evaluate_noise_robustness_single(ckpt_path, traj_path, noise_levels, device)
+                elif eval_type == 'error_vs_uncertainty':
+                    df = evaluate_error_vs_uncertainty_single(ckpt_path, traj_path, horizon, device)
+                elif eval_type == 'correlation_by_horizon':
+                    df = evaluate_correlation_by_horizon_single(ckpt_path, traj_path, horizon, device)
+                if df is not None:
+                    df['condition'] = condition
+                    df['seed'] = seed
+                    df['checkpoint_step'] = step
+                    results[eval_type].append(df)
         
-        if 'noise_robustness' in evaluations:
-            print("  Evaluating noise robustness...")
-            df = evaluate_noise_robustness_single(ckpt_path, traj_path, noise_levels, device)
-            if df is not None:
-                df['condition'] = condition
-                df['seed'] = seed
-                df['checkpoint_step'] = step
-                results['noise_robustness'].append(df)
-        
-        if 'error_vs_uncertainty' in evaluations:
-            print("  Evaluating error vs uncertainty...")
-            df = evaluate_error_vs_uncertainty_single(ckpt_path, traj_path, horizon, device)
-            if df is not None:
-                df['condition'] = condition
-                df['seed'] = seed
-                df['checkpoint_step'] = step
-                results['error_vs_uncertainty'].append(df)
+
     
     if dry_run:
         return
@@ -314,9 +538,13 @@ def main():
     parser.add_argument('--filter', type=str, default='finetune',
                         help='Filter runs by pattern (default: "finetune")')
     parser.add_argument('--evaluations', type=str, nargs='+',
-                        default=['hallucination_horizon', 'noise_robustness', 'error_vs_uncertainty'],
-                        choices=['hallucination_horizon', 'noise_robustness', 'error_vs_uncertainty'],
+                        default=['hallucination_horizon', 'noise_robustness', 'error_vs_uncertainty', 'correlation_by_horizon'],
+                        choices=['hallucination_horizon', 'noise_robustness', 'error_vs_uncertainty', 'correlation_by_horizon'],
                         help='Which evaluations to run (default: all)')
+    parser.add_argument('--iros_aggregations', type=str, nargs='+',
+                        default=['growth_rates', 'horizon_auc', 'risk_coverage', 'auroc', 'hallucination_stats'],
+                        choices=['growth_rates', 'horizon_auc', 'risk_coverage', 'auroc', 'hallucination_stats'],
+                        help='IROS paper aggregations to run on generated CSVs (default: all)')
     parser.add_argument('--horizon', type=int, default=200,
                         help='Prediction horizon for evaluations (default: 200)')
     parser.add_argument('--noise_levels', type=float, nargs='+',
@@ -353,10 +581,11 @@ def main():
         return 1
     
     # Show what will be evaluated
-    print(f"\nEvaluations to run: {args.evaluations}")
+    print(f"Evaluations to run: {args.evaluations}")
     print(f"Prediction horizon: {args.horizon}")
     if 'noise_robustness' in args.evaluations:
         print(f"Noise levels: {args.noise_levels}")
+    print(f"IROS aggregations: {args.iros_aggregations}")
     
     if args.dry_run:
         print("\n[DRY RUN MODE]")
@@ -371,6 +600,10 @@ def main():
         device=args.device,
         dry_run=args.dry_run,
     )
+    
+    # Run IROS aggregations (post-processing on generated CSVs)
+    if not args.dry_run:
+        run_iros_aggregations(output_dir, args.iros_aggregations)
     
     print("\n" + "=" * 60)
     if args.dry_run:

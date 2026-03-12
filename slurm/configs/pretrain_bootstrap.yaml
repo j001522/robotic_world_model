@@ -1,0 +1,42 @@
+# =============================================================================
+# Bootstrap Ensemble Pretraining (with Prior Networks)
+# =============================================================================
+# Similar to standard ensemble but uses bootstrap sampling for diversity.
+# Each ensemble member trains on a different data subset.
+#
+# Usage:
+#   sbatch --job-name=pretrain-bootstrap --partition=gpu_a100 --time=24:00:00 \
+#          slurm_train.sh configs/pretrain_bootstrap.yaml
+# =============================================================================
+
+mode: pretrain
+task: Template-Isaac-Velocity-Flat-Anymal-D-Pretrain-v0
+max_iterations: 2500
+
+model:
+  ensemble_size: 5
+  latent_mode: false
+  
+  # Bootstrap sampling for ensemble diversity
+  prior_scale: 1.0
+  prior_hidden_div: 4
+  bootstrap: true  # Enable bootstrap sampling
+  uncertainty_metric: std
+
+training:
+  num_envs: 4096
+  wm_learning_rate: 1e-4
+  wm_weight_decay: 1e-5
+  wm_batch_size: 1024
+  policy_learning_rate: 0.001
+
+imagination:
+  # Imagination is disabled in pretrain mode
+  num_envs: 4096
+  num_steps: 100
+  uncertainty_penalty_weight: 0.0  # No penalty during pretrain
+
+logging:
+  logger: tensorboard
+  wandb_project: rwm-anymal
+  run_name: pretrain-bootstrap

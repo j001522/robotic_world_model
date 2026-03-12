@@ -34,6 +34,8 @@ results/paper/
 │   └── *.csv
 ├── error_vs_uncertainty/  # From batch_evaluate.py (SLURM)
 │   └── *.csv
+├── correlation_by_horizon/ # From batch_evaluate.py (SLURM)
+│   └── *.csv
 ├── faithfulness_gap/      # From evaluate_real_rewards.py (SLURM+Isaac)
 │   └── *.csv
 └── figures/               # From plot_*.py scripts
@@ -89,7 +91,7 @@ sbatch scripts/analysis/slurm_batch_record.sh
 TRAJECTORY_DIR=results/paper/trajectories \
 OUTPUT_DIR=results/paper \
 HORIZON=100 \
-EVALUATIONS="hallucination_horizon noise_robustness" \
+EVALUATIONS="hallucination_horizon noise_robustness correlation_by_horizon" \
 sbatch scripts/analysis/slurm_batch_evaluate.sh
 ```
 
@@ -226,7 +228,7 @@ sbatch scripts/analysis/slurm_batch_evaluate.sh
 The job runs `batch_evaluate.py` which:
 - Auto-discovers trajectory files in `results/paper/trajectories/`
 - Matches each trajectory to its corresponding checkpoint
-- Runs all requested evaluations (hallucination horizon, noise robustness, error vs uncertainty)
+- Runs all requested evaluations (hallucination horizon, noise robustness, error vs uncertainty, correlation by horizon)
 - Saves combined CSVs per evaluation type
 
 **Dry run (preview on login node):**
@@ -244,6 +246,7 @@ Output:
 - `results/paper/hallucination_horizon/hallucination_horizon_all.csv`
 - `results/paper/noise_robustness/noise_robustness_all.csv`
 - `results/paper/error_vs_uncertainty/error_vs_uncertainty_all.csv`
+- `results/paper/correlation_by_horizon/correlation_by_horizon_all.csv`
 - Per-condition CSVs: `*_finetune-bs-nopen.csv`, etc.
 
 ---
@@ -308,6 +311,22 @@ python evaluate_error_vs_uncertainty.py \
 Output:
 - `results/paper/error_vs_uncertainty/error_vs_uncertainty_all.csv`
 - `results/paper/error_vs_uncertainty/error_vs_uncertainty_aggregated.csv`
+
+### Evaluate Correlation By Horizon (Single Run)
+
+Evaluates how the correlation between prediction error and epistemic uncertainty changes across prediction steps. By default, only `finetune` runs are evaluated.
+
+```bash
+python evaluate_correlation_by_horizon.py \
+    --log_dir ../../logs/rsl_rl/anymal_d_flat \
+    --trajectory_data ../../results/paper/trajectories/traj.pt \
+    --output_dir ../../results/paper/correlation_by_horizon \
+    --horizon 100
+```
+
+Output:
+- `results/paper/correlation_by_horizon/correlation_by_horizon_all.csv`
+- `results/paper/correlation_by_horizon/correlation_by_horizon_aggregated.csv`
 
 ### Evaluate Real Rewards (Single Run - Isaac Sim)
 
@@ -454,6 +473,15 @@ python scripts/analysis/plot_error_vs_uncertainty.py \
     --format pdf
 ```
 
+### Plot Correlation By Horizon
+
+```bash
+python scripts/analysis/plot_correlation_by_horizon.py \
+    --data_dir results/paper/correlation_by_horizon \
+    --output_dir results/paper/figures \
+    --format pdf
+```
+
 ### Plot Faithfulness Gap
 
 ```bash
@@ -518,12 +546,14 @@ Contains shared plotting utilities:
 | `evaluate_hallucination_horizon.py` | Data | GPU | CSVs (single run) |
 | `evaluate_noise_robustness.py` | Data | GPU | CSVs (single run) |
 | `evaluate_error_vs_uncertainty.py` | Data | GPU | CSVs (single run) |
+| `evaluate_correlation_by_horizon.py` | Data | GPU | CSVs (single run) |
 | `evaluate_real_rewards.py` | Data | Isaac Sim | CSVs |
 | `plot_all.py` | Plot | Login node | All Figures |
 | `plot_training_curves.py` | Plot | Login node | Figures |
 | `plot_hallucination_horizon.py` | Plot | Login node | Figures |
 | `plot_noise_robustness.py` | Plot | Login node | Figures |
 | `plot_error_vs_uncertainty.py` | Plot | Login node | Figures |
+| `plot_correlation_by_horizon.py` | Plot | Login node | Figures |
 | `plot_faithfulness_gap.py` | Plot | Login node | Figures |
 
 ---

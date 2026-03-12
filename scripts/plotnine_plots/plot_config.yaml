@@ -1,0 +1,20 @@
+smoothing:
+  training:
+    mode: "ewma"
+    ewma_alpha: 0.05
+  long_horizon:
+    mode: "rolling_mean"
+    window: 7
+  decision:
+    mode: "none"
+    window: 5
+  correlations:
+    mode: "rolling_mean"
+    window: 7
+  faithfulness:
+    mode: "rolling_mean"
+    window: 50
+  noise:
+    mode: "none"
+  reliability:
+    mode: "none"
