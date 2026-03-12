@@ -1,0 +1,62 @@
+# =============================================================================
+# Franka Reach — Latent-Space World Model Pretraining (Phase 1+2)
+# =============================================================================
+# Trains an ensemble world model with latent-space bottleneck for the
+# Franka Panda reach manipulation task.
+#
+# Key differences from ANYmal-D pretrain:
+#   - System state is 24D (7 joint_pos + 7 joint_vel + 7 torque + 3 ee_pos)
+#   - No contact/termination losses (fixed-base robot, no early termination)
+#   - Smaller num_envs (1024 vs 4096) — reach task is lighter weight
+#   - Uses Template-Isaac-Reach-Franka-Pretrain-v0 gym env
+#
+# Usage:
+#   sbatch --job-name=fr-pretrain-latent --partition=gpu_a100 --time=12:00:00 slurm_train.sh configs/franka_reach_pretrain_latent.yaml
+# =============================================================================
+
+mode: pretrain
+task: Template-Isaac-Reach-Franka-Pretrain-v0
+max_iterations: 2000
+
+model:
+  # Ensemble configuration
+  ensemble_size: 5
+
+  # Latent-space architecture (Phase 1)
+  latent_mode: true
+  latent_dim: 256
+  simnorm_dim: 8
+  encoder_hidden_dims: [256]
+  decoder_hidden_dims: [256]
+  latent_head_hidden_dims: [256]
+  encoder_dropout: 0.0
+
+  # Phase 2: Consistency loss with EMA target encoder
+  target_encoder_momentum: 0.99
+  consistency_coef: 0.0
+  reconstruction_coef: 1.0
+  encoder_consistency_coef: 0.0
+
+  # Randomized priors
+  prior_scale: 1.0
+  prior_hidden_div: 4
+  bootstrap: false
+  uncertainty_metric: std
+
+training:
+  num_envs: 1024
+  wm_learning_rate: 1e-4
+  wm_weight_decay: 1e-5
+  wm_batch_size: 1024
+  policy_learning_rate: 0.001
+
+imagination:
+  # Imagination is disabled in pretrain mode
+  num_envs: 1024
+  num_steps: 100
+  uncertainty_penalty_weight: 0.0
+
+logging:
+  logger: tensorboard
+  wandb_project: rwm-franka-reach
+  run_name: fr-pretrain-latent

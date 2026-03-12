@@ -1,0 +1,74 @@
+# =============================================================================
+# Latent-Space MBPO-PPO Finetuning - Multi-Seed Example
+# =============================================================================
+# This config finetunes policies for 3 different seeds, each loading from
+# the corresponding pretrain checkpoint with the same seed.
+#
+# The pretrain_run_name specifies the base run_name (without seed suffix).
+# The script automatically finds the correct pretrain for each seed:
+#   - seed42 -> loads from *_pretrain-latent-rec_only_bi-seed42
+#   - seed123 -> loads from *_pretrain-latent-rec_only_bi-seed123
+#   - seed1001 -> loads from *_pretrain-latent-rec_only_bi-seed1001
+#
+# Usage:
+#   sbatch --job-name=finetune-latent --partition=gpu_a100 --time=72:00:00 \
+#          slurm_train.sh configs/finetune_latent_multi.yaml
+# =============================================================================
+
+mode: finetune
+task: Template-Isaac-Velocity-Flat-Anymal-D-Finetune-v0
+max_iterations: 2500
+seeds: [42, 123, 1001]  # Must match pretrain seeds
+
+model:
+  # MUST match pretrain configuration
+  ensemble_size: 5
+  latent_mode: true
+  latent_dim: 256
+  simnorm_dim: 8
+  encoder_hidden_dims: [256]
+  decoder_hidden_dims: [256]
+  latent_head_hidden_dims: [256]
+  encoder_dropout: 0.0
+
+  # Phase 2: EMA target encoder params
+  target_encoder_momentum: 0.99
+  consistency_coef: 0.0
+  reconstruction_coef: 1.0
+  encoder_consistency_coef: 0.0
+
+  # Randomized priors (must match pretrain)
+  prior_scale: 1.0
+  prior_hidden_div: 4
+  bootstrap: false
+  uncertainty_metric: std
+
+training:
+  num_envs: 4096
+  wm_learning_rate: 1e-4
+  wm_weight_decay: 1e-5
+  wm_batch_size: 1024
+  policy_learning_rate: 0.001
+
+imagination:
+  num_envs: 4096
+  num_steps: 100
+  # Uncertainty penalty (negative = penalty for high uncertainty)
+  # -0.1 = mild penalty (conservative)
+  # -0.25 = moderate penalty
+  # -1.0 = strong penalty (very conservative)
+  uncertainty_penalty_weight: -0.25
+
+checkpoint:
+  resume: true
+  # Seed-aware loading: specify the base pretrain run_name (without seed suffix)
+  # The script will find *_pretrain-latent-rec_only_bi-seed{seed}/model_2500.pt for each seed
+  pretrain_run_name: "pretrain-latent-rec_only_bi"
+  pretrain_logs_dir: "logs/rsl_rl/anymal_d_flat/"  # Optional: auto-detected for Anymal/Franka, but can be explicit
+  checkpoint: model_2500.pt
+  # Note: load_run and system_dynamics_load_path are auto-generated from pretrain_run_name
+
+logging:
+  logger: tensorboard
+  wandb_project: rwm-anymal
+  run_name: finetune-latent-pen025
