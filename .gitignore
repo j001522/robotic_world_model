@@ -72,3 +72,11 @@ tests/
 
 # Docker history
 .isaac-lab-docker-history
+
+# SLURM job logs
+slurm-*.out
+
+# Generated results and figures
+results/
+scripts/figures_out/
+docs/
