@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """
-Unified Paper Figure Generation Script
+Unified Paper Figure Generation Script (IROS + Original)
 
 This is a wrapper script that provides centralized control over all plotting
 parameters and can generate all or selected figures from the analysis pipeline.
+
+Includes IROS paper figures:
+- Figure 2: Long-Horizon Behavior
+- Figure 3: Hallucination Horizon & Growth Rates
+- Figure 5: Decision Utility (Risk Filtering & AUROC)
 
 Features:
 - Single configuration point for all plot settings
@@ -39,6 +44,7 @@ Usage:
 import argparse
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Optional
 import yaml
@@ -90,15 +96,34 @@ DEFAULT_CONFIG = {
         'hallucination_horizon': True,
         'noise_robustness': True,
         'error_vs_uncertainty': True,
+        'correlation_by_horizon': True,
         'faithfulness_gap': True,
+        # NEW: IROS paper figures
+        'long_horizon': True,
+        'hallucination_distribution': True,
+        'decision_utility': True,
     },
-    
+
     # Per-plot settings
     'hallucination_horizon': {
         'error_type': 'rel',  # 'rel' or 'abs'
     },
     'error_vs_uncertainty': {
         'error_type': 'rel',
+    },
+    # NEW: IROS paper plot settings
+    'long_horizon': {
+        'velocity_only': True,  # Use velocity-only errors (recommended for Anymal)
+    },
+    'hallucination_distribution': {
+        'plot_type': 'box',  # 'box' or 'violin'
+        'use_short_labels': True,  # Use short labels (B0/Bp/R0/Rp)
+        'skip_growth_rates': True,  # Skip growth rate scatter plot (not meaningful)
+    },
+    'decision_utility': {
+        'horizon_filter': 30,  # Minimum horizon for AUROC
+        'velocity_only': True,  # Use velocity-only errors (recommended for Anymal)
+        'auroc_plot_type': 'line',  # 'line' for AUROC vs horizon, 'bar' for aggregated
     },
 }
 
@@ -170,9 +195,11 @@ def build_conditions_arg(config: dict) -> str:
     return ''
 
 
-def run_plot_script(script_name: str, args: list[str], cwd: Path):
+def run_plot_script(script_name: str, args: list[str], cwd: Path, colors_file: Optional[Path] = None):
     """Run a plot script with given arguments."""
     cmd = [sys.executable, script_name] + args
+    if colors_file:
+        cmd.extend(['--colors', str(colors_file)])
     print(f"  Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
     if result.returncode != 0:
@@ -185,18 +212,18 @@ def run_plot_script(script_name: str, args: list[str], cwd: Path):
     return result.returncode == 0
 
 
-def generate_training_curves(config: dict, script_dir: Path):
+def generate_training_curves(config: dict, script_dir: Path, colors_file: Optional[Path] = None):
     """Generate training curve plots."""
     print("\n=== Training Curves ===")
-    
+
     results_dir = Path(config['results_dir'])
     output_dir = Path(config['output_dir'])
-    
+
     tensorboard_dir = results_dir / 'tensorboard' / 'aggregated'
     if not tensorboard_dir.exists():
         print(f"  Skipping: TensorBoard data not found at {tensorboard_dir}")
         return
-    
+
     args = [
         '--data_dir', str(tensorboard_dir),
         '--output_dir', str(output_dir / 'training_curves'),
@@ -204,114 +231,221 @@ def generate_training_curves(config: dict, script_dir: Path):
         '--smooth_window', str(config['smooth_window']),
         '--autoregressive_smooth_window', str(config['autoregressive_smooth_window']),
     ]
-    
+
     conditions_arg = build_conditions_arg(config)
     if conditions_arg:
         args.extend(['--conditions', conditions_arg])
-    
-    run_plot_script('plot_training_curves.py', args, script_dir)
+
+    run_plot_script('plot_training_curves.py', args, script_dir, colors_file)
 
 
-def generate_hallucination_horizon(config: dict, script_dir: Path):
+def generate_hallucination_horizon(config: dict, script_dir: Path, colors_file: Optional[Path] = None):
     """Generate hallucination horizon plots."""
     print("\n=== Hallucination Horizon ===")
-    
+
     results_dir = Path(config['results_dir'])
     output_dir = Path(config['output_dir'])
-    
+
     data_dir = results_dir / 'hallucination_horizon'
     if not data_dir.exists():
         print(f"  Skipping: Data not found at {data_dir}")
         return
-    
+
     args = [
         '--data_dir', str(data_dir),
         '--output_dir', str(output_dir),
         '--format', config['format'],
         '--error_type', config.get('hallucination_horizon', {}).get('error_type', 'rel'),
     ]
-    
+
     conditions_arg = build_conditions_arg(config)
     if conditions_arg:
         args.extend(['--conditions', conditions_arg])
-    
-    run_plot_script('plot_hallucination_horizon.py', args, script_dir)
+
+    run_plot_script('plot_hallucination_horizon.py', args, script_dir, colors_file)
 
 
-def generate_noise_robustness(config: dict, script_dir: Path):
+def generate_noise_robustness(config: dict, script_dir: Path, colors_file: Optional[Path] = None):
     """Generate noise robustness plots."""
     print("\n=== Noise Robustness ===")
-    
+
     results_dir = Path(config['results_dir'])
     output_dir = Path(config['output_dir'])
-    
+
     data_dir = results_dir / 'noise_robustness'
     if not data_dir.exists():
         print(f"  Skipping: Data not found at {data_dir}")
         return
-    
+
     args = [
         '--data_dir', str(data_dir),
         '--output_dir', str(output_dir),
         '--format', config['format'],
     ]
-    
+
     conditions_arg = build_conditions_arg(config)
     if conditions_arg:
         args.extend(['--conditions', conditions_arg])
-    
-    run_plot_script('plot_noise_robustness.py', args, script_dir)
+
+    run_plot_script('plot_noise_robustness.py', args, script_dir, colors_file)
 
 
-def generate_error_vs_uncertainty(config: dict, script_dir: Path):
+def generate_error_vs_uncertainty(config: dict, script_dir: Path, colors_file: Optional[Path] = None):
     """Generate error vs uncertainty plots."""
     print("\n=== Error vs Uncertainty ===")
-    
+
     results_dir = Path(config['results_dir'])
     output_dir = Path(config['output_dir'])
-    
+
     data_dir = results_dir / 'error_vs_uncertainty'
     if not data_dir.exists():
         print(f"  Skipping: Data not found at {data_dir}")
         return
-    
+
     args = [
         '--data_dir', str(data_dir),
         '--output_dir', str(output_dir),
         '--format', config['format'],
         '--error_type', config.get('error_vs_uncertainty', {}).get('error_type', 'rel'),
     ]
-    
+
     conditions_arg = build_conditions_arg(config)
     if conditions_arg:
         args.extend(['--conditions', conditions_arg])
-    
-    run_plot_script('plot_error_vs_uncertainty.py', args, script_dir)
+
+    run_plot_script('plot_error_vs_uncertainty.py', args, script_dir, colors_file)
 
 
-def generate_faithfulness_gap(config: dict, script_dir: Path):
-    """Generate faithfulness gap plots."""
-    print("\n=== Faithfulness Gap ===")
-    
+def generate_correlation_by_horizon(config: dict, script_dir: Path, colors_file: Optional[Path] = None):
+    """Generate correlation by horizon plots."""
+    print("\n=== Correlation By Horizon ===")
+
     results_dir = Path(config['results_dir'])
     output_dir = Path(config['output_dir'])
-    
-    data_dir = results_dir / 'faithfulness_gap'
+
+    data_dir = results_dir / 'correlation_by_horizon'
     if not data_dir.exists():
         print(f"  Skipping: Data not found at {data_dir}")
         return
-    
+
     args = [
         '--data_dir', str(data_dir),
         '--output_dir', str(output_dir),
         '--format', config['format'],
     ]
-    
+
     conditions_arg = build_conditions_arg(config)
     if conditions_arg:
         args.extend(['--conditions', conditions_arg])
-    
-    run_plot_script('plot_faithfulness_gap.py', args, script_dir)
+
+    if config.get('exclude'):
+        args.extend(['--exclude', ','.join(config['exclude'])])
+
+    run_plot_script('plot_correlation_by_horizon.py', args, script_dir, colors_file)
+
+
+def generate_faithfulness_gap(config: dict, script_dir: Path, colors_file: Optional[Path] = None):
+    """Generate faithfulness gap plots."""
+    print("\n=== Faithfulness Gap ===")
+
+    results_dir = Path(config['results_dir'])
+    output_dir = Path(config['output_dir'])
+
+    data_dir = results_dir / 'faithfulness_gap'
+    if not data_dir.exists():
+        print(f"  Skipping: Data not found at {data_dir}")
+        return
+
+    args = [
+        '--data_dir', str(data_dir),
+        '--output_dir', str(output_dir),
+        '--format', config['format'],
+    ]
+
+    conditions_arg = build_conditions_arg(config)
+    if conditions_arg:
+        args.extend(['--conditions', conditions_arg])
+
+    run_plot_script('plot_faithfulness_gap.py', args, script_dir, colors_file)
+
+
+def generate_long_horizon(config: dict, script_dir: Path, colors_file: Optional[Path] = None):
+    """Generate long-horizon plots (Figure 2)."""
+    print("\n=== Long-Horizon (Figure 2) ===")
+
+    results_dir = Path(config['results_dir'])
+    output_dir = Path(config['output_dir'])
+
+    args = [
+        '--results_dir', str(results_dir),
+        '--output_dir', str(output_dir / 'fig2'),
+        '--format', config['format'],
+    ]
+
+    conditions_arg = build_conditions_arg(config)
+    if conditions_arg:
+        args.extend(['--conditions', conditions_arg])
+
+    if config.get('long_horizon', {}).get('velocity_only'):
+        args.append('--velocity_only')
+
+    run_plot_script('plot_fig2_long_horizon.py', args, script_dir, colors_file)
+
+
+def generate_hallucination_distribution(config: dict, script_dir: Path, colors_file: Optional[Path] = None):
+    """Generate hallucination distribution plots (Figure 3)."""
+    print("\n=== Hallucination Distribution (Figure 3) ===")
+
+    results_dir = Path(config['results_dir'])
+    output_dir = Path(config['output_dir'])
+
+    halluc_config = config.get('hallucination_distribution', {})
+
+    args = [
+        '--results_dir', str(results_dir),
+        '--output_dir', str(output_dir / 'fig3'),
+        '--format', config['format'],
+        '--plot_type', halluc_config.get('plot_type', 'box'),
+    ]
+
+    if halluc_config.get('use_short_labels', True):
+        args.append('--use_short_labels')
+
+    if halluc_config.get('skip_growth_rates', True):
+        args.append('--skip_growth_rates')
+
+    conditions_arg = build_conditions_arg(config)
+    if conditions_arg:
+        args.extend(['--conditions', conditions_arg])
+
+    run_plot_script('plot_fig3_hallucination.py', args, script_dir, colors_file)
+
+
+def generate_decision_utility(config: dict, script_dir: Path, colors_file: Optional[Path] = None):
+    """Generate decision utility plots (Figure 5)."""
+    print("\n=== Decision Utility (Figure 5) ===")
+
+    results_dir = Path(config['results_dir'])
+    output_dir = Path(config['output_dir'])
+
+    decision_config = config.get('decision_utility', {})
+
+    args = [
+        '--results_dir', str(results_dir),
+        '--output_dir', str(output_dir / 'fig5'),
+        '--format', config['format'],
+        '--horizon_filter', str(decision_config.get('horizon_filter', 30)),
+        '--auroc_plot_type', decision_config.get('auroc_plot_type', 'line'),
+    ]
+
+    if decision_config.get('velocity_only', True):
+        args.append('--velocity_only')
+
+    conditions_arg = build_conditions_arg(config)
+    if conditions_arg:
+        args.extend(['--conditions', conditions_arg])
+
+    run_plot_script('plot_fig5_decision_utility.py', args, script_dir, colors_file)
 
 
 def main():
@@ -356,11 +490,20 @@ def main():
                         help='Generate noise robustness plots')
     parser.add_argument('--error_vs_uncertainty', action='store_true',
                         help='Generate error vs uncertainty plots')
+    parser.add_argument('--correlation_by_horizon', action='store_true',
+                        help='Generate correlation by horizon plots')
     parser.add_argument('--faithfulness_gap', action='store_true',
                         help='Generate faithfulness gap plots')
+    # NEW: IROS paper figure flags
+    parser.add_argument('--long_horizon', action='store_true',
+                        help='Generate long-horizon plots (Figure 2)')
+    parser.add_argument('--hallucination_distribution', action='store_true',
+                        help='Generate hallucination distribution plots (Figure 3)')
+    parser.add_argument('--decision_utility', action='store_true',
+                        help='Generate decision utility plots (Figure 5)')
     parser.add_argument('--all', action='store_true',
                         help='Generate all plots (default if no flags specified)')
-    
+
     # Verbosity
     parser.add_argument('--list_conditions', action='store_true',
                         help='List available conditions and exit')
@@ -389,10 +532,13 @@ def main():
         config['autoregressive_smooth_window'] = args.autoregressive_smooth_window
     
     # Determine which plots to generate
-    plot_flags = [args.training_curves, args.hallucination_horizon, 
-                  args.noise_robustness, args.error_vs_uncertainty, 
-                  args.faithfulness_gap]
-    
+    plot_flags = [args.training_curves, args.hallucination_horizon,
+                  args.noise_robustness, args.error_vs_uncertainty,
+                  args.correlation_by_horizon, args.faithfulness_gap,
+                  # NEW: IROS paper flags
+                  args.long_horizon, args.hallucination_distribution,
+                  args.decision_utility]
+
     if any(plot_flags):
         # Use explicit flags
         config['plots'] = {
@@ -400,16 +546,25 @@ def main():
             'hallucination_horizon': args.hallucination_horizon,
             'noise_robustness': args.noise_robustness,
             'error_vs_uncertainty': args.error_vs_uncertainty,
+            'correlation_by_horizon': args.correlation_by_horizon,
             'faithfulness_gap': args.faithfulness_gap,
+            # NEW: IROS paper plots
+            'long_horizon': args.long_horizon,
+            'hallucination_distribution': args.hallucination_distribution,
+            'decision_utility': args.decision_utility,
         }
     elif args.all or not any(plot_flags):
         # Generate all plots
         config['plots'] = {k: True for k in config['plots']}
     
     # Setup paths
-    results_dir = Path(config['results_dir'])
-    output_dir = Path(config['output_dir'])
+    results_dir = Path(config['results_dir']).resolve()
+    output_dir = Path(config['output_dir']).resolve()
     script_dir = Path(__file__).parent
+    
+    # Update config with resolved absolute paths
+    config['results_dir'] = str(results_dir)
+    config['output_dir'] = str(output_dir)
     
     # List conditions mode
     if args.list_conditions:
@@ -424,7 +579,11 @@ def main():
                 print(f"    - {c}")
         
         # Check other data directories
-        for subdir in ['hallucination_horizon', 'noise_robustness', 'error_vs_uncertainty', 'faithfulness_gap']:
+        for subdir in ['hallucination_horizon', 'noise_robustness', 'error_vs_uncertainty',
+                     'correlation_by_horizon', 'faithfulness_gap',
+                     # NEW: IROS paper data directories
+                     'growth_rates', 'horizon_auc', 'risk_coverage',
+                     'auroc', 'hallucination_stats']:
             data_dir = results_dir / subdir
             if data_dir.exists():
                 # Try to find conditions from CSV files
@@ -470,26 +629,51 @@ def main():
     
     # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Setup custom colors
     setup_colors(config)
-    
-    # Generate plots
-    if config['plots'].get('training_curves'):
-        generate_training_curves(config, script_dir)
-    
-    if config['plots'].get('hallucination_horizon'):
-        generate_hallucination_horizon(config, script_dir)
-    
-    if config['plots'].get('noise_robustness'):
-        generate_noise_robustness(config, script_dir)
-    
-    if config['plots'].get('error_vs_uncertainty'):
-        generate_error_vs_uncertainty(config, script_dir)
-    
-    if config['plots'].get('faithfulness_gap'):
-        generate_faithfulness_gap(config, script_dir)
-    
+
+    # Create temporary colors file for subprocess scripts
+    colors_file = None
+    if config.get('colors'):
+        colors_file = script_dir / '.custom_colors.yaml'
+        with open(colors_file, 'w') as f:
+            yaml.dump(config['colors'], f)
+
+    try:
+        # Generate plots
+        if config['plots'].get('training_curves'):
+            generate_training_curves(config, script_dir, colors_file)
+
+        if config['plots'].get('hallucination_horizon'):
+            generate_hallucination_horizon(config, script_dir, colors_file)
+
+        if config['plots'].get('noise_robustness'):
+            generate_noise_robustness(config, script_dir, colors_file)
+
+        if config['plots'].get('error_vs_uncertainty'):
+            generate_error_vs_uncertainty(config, script_dir, colors_file)
+
+        if config['plots'].get('correlation_by_horizon'):
+            generate_correlation_by_horizon(config, script_dir, colors_file)
+
+        if config['plots'].get('faithfulness_gap'):
+            generate_faithfulness_gap(config, script_dir, colors_file)
+
+        # NEW: IROS paper figures
+        if config['plots'].get('long_horizon'):
+            generate_long_horizon(config, script_dir, colors_file)
+
+        if config['plots'].get('hallucination_distribution'):
+            generate_hallucination_distribution(config, script_dir, colors_file)
+
+        if config['plots'].get('decision_utility'):
+            generate_decision_utility(config, script_dir, colors_file)
+    finally:
+        # Clean up temporary colors file
+        if colors_file and colors_file.exists():
+            colors_file.unlink()
+
     print("\n" + "=" * 60)
     print("Done!")
     print(f"Figures saved to: {output_dir}")

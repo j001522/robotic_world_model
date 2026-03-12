@@ -9,8 +9,8 @@
 # Directories
 # ============================================================================
 
-results_dir: /gpfs/work4/0/prjs0951/Giacomo/robotic_world_model/results/paper
-output_dir: /gpfs/work4/0/prjs0951/Giacomo/robotic_world_model/results/paper/figures_IROS_2
+results_dir: /gpfs/work4/0/prjs0951/Giacomo/robotic_world_model/results/paper_franka
+output_dir: /gpfs/work4/0/prjs0951/Giacomo/robotic_world_model/results/paper_franka/figures_IROS
 
 # Output format: pdf, png, or svg
 format: pdf
@@ -21,12 +21,12 @@ format: pdf
 
 # Include only these conditions (comment out to include all)
 # Supports partial matching: "rp-pen" matches "rp-pen025-std", "rp-pen006-std", etc.
-conditions:
-  - bs-nopen
-  - rp-pen025-std
-  - rp-pen006-std
-  - bs-pen025
-  - rp-nopen-std
+#conditions:
+#  - bs-nopen
+#  - rp-pen025-std
+#  - rp-pen006-std
+#  - bs-pen025
+#  - rp-nopen-std
 
 
 # Exclude these conditions (applied after include filter)
@@ -39,13 +39,13 @@ conditions:
 
 # Override default colors for specific conditions
 # Uses hex color codes
-colors:
-  bs-nopen: '#EE7733'        # Orange - Baseline
-  bs-pen025: '#DD2222'       # Red - Baseline + Penalty
-  rp-nopen: '#228833'        # Green - Random Priors, No Penalty
-  rp-nopen-std: '#228833'    # Green - Random Priors, No Penalty (with -std suffix)
-  rp-pen006-std: '#0077BB'   # Blue
-  rp-pen025-std: '#66CCEE'   # Light Blue
+#colors:
+#  bs-nopen: '#EE7733'        # Orange - Baseline
+#  bs-pen025: '#DD2222'       # Red - Baseline + Penalty
+#  rp-nopen: '#228833'        # Green - Random Priors, No Penalty
+#  rp-nopen-std: '#228833'    # Green - Random Priors, No Penalty (with -std suffix)
+#  rp-pen006-std: '#0077BB'   # Blue
+#  rp-pen025-std: '#66CCEE'   # Light Blue
 
 # ============================================================================
 # Custom Labels

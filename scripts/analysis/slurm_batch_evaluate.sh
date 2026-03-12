@@ -12,7 +12,7 @@
 # Batch Evaluate All Models (SLURM)
 # =============================================================================
 # Runs all offline evaluations (hallucination horizon, noise robustness,
-# error vs uncertainty) on pre-recorded trajectories.
+# error vs uncertainty, correlation by horizon) on pre-recorded trajectories.
 #
 # This does NOT require Isaac Sim - only GPU for inference.
 #
@@ -30,10 +30,13 @@
 TRAJECTORY_DIR="${TRAJECTORY_DIR:-results/paper/trajectories}"
 OUTPUT_DIR="${OUTPUT_DIR:-results/paper}"
 HORIZON="${HORIZON:-200}"
-EVALUATIONS="${EVALUATIONS:-hallucination_horizon noise_robustness error_vs_uncertainty}"
+EVALUATIONS="${EVALUATIONS:-hallucination_horizon noise_robustness error_vs_uncertainty correlation_by_horizon}"
+# NEW: IROS paper evaluation aggregations
+IROS_AGGREGATIONS="${IROS_AGGREGATIONS:-growth_rates horizon_auc risk_coverage auroc hallucination_stats}"
 
 # Fixed configuration
 LOG_DIR="logs/rsl_rl/anymal_d_flat"
+#LOG_DIR="logs/rsl_rl/franka_reach"
 
 echo "========================================"
 echo "Batch Evaluate Models"
@@ -77,6 +80,7 @@ python scripts/analysis/batch_evaluate.py \
     --output_dir "$OUTPUT_DIR" \
     --horizon "$HORIZON" \
     --evaluations $EVALUATIONS \
+    --iros_aggregations $IROS_AGGREGATIONS \
     --device cuda
 
 EXITCODE=$?
